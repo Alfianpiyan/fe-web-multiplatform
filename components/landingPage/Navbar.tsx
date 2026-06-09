@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Image from "next/image";
 
 export default function Navbar() {
@@ -68,7 +69,8 @@ export default function Navbar() {
 
                 <div className="flex items-center gap-4">
 
-                    <button
+                    <Link
+                        href="/login"
                         className="
                             hidden md:block
                             text-gray-700
@@ -78,9 +80,10 @@ export default function Navbar() {
                         "
                     >
                         Masuk
-                    </button>
+                    </Link>
 
-                    <button
+                    <Link
+                        href="/register"
                         className="
                             px-6 py-3
                             rounded-xl
@@ -93,7 +96,7 @@ export default function Navbar() {
                         "
                     >
                         Daftar
-                    </button>
+                    </Link>
 
                 </div>
 
