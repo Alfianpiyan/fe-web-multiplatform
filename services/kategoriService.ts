@@ -1,5 +1,10 @@
-import api from "./api";
+// services/kategoriService.ts
 
-export const getAllKategori = () => {
-    return api.get("/kategori");
+import api from "../src/lib/api";
+
+export const getAllKategori = async () => {
+  const response =
+    await api.get("/admin/public/kategori");
+
+  return response.data;
 };

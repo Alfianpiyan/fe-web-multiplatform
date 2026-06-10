@@ -1,4 +1,4 @@
-import api from "./api";
+import api from "../src/lib/api";
 
 export const getAllLaporanAdmin = () => {
   return api.get("/admin");
