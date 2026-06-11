@@ -12,10 +12,9 @@ import { GeoSearchControl, OpenStreetMapProvider } from "leaflet-geosearch";
 import L from "leaflet";
 
 import "leaflet/dist/leaflet.css";
-// Jangan lupa import CSS bawaan geosearch biar kotak inputnya rapi
 import "leaflet-geosearch/dist/geosearch.css";
 
-// Fix icon marker bawaan Leaflet yang sering ngebug/hilang di Next.js
+// Fix icon marker bawaan Leaflet agar tidak hilang di Next.js
 const defaultIcon = L.icon({
   iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
   iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
@@ -30,7 +29,7 @@ interface LocationPickerProps {
   onChange: (lat: number, lng: number) => void;
 }
 
-// 1. Komponen untuk menangani klik manual di peta
+// 1. Komponen untuk menangani KLIK MANUAL di peta
 function LocationMarker({
   onChange,
 }: {
@@ -38,13 +37,28 @@ function LocationMarker({
 }) {
   useMapEvents({
     click(e) {
+      // Mengambil koordinat pas diklik oleh user
       onChange(e.latlng.lat, e.latlng.lng);
     },
   });
   return null;
 }
 
-// 2. Komponen baru untuk memunculkan kotak pencarian alamat
+// 2. Komponen untuk sinkronisasi posisi peta agar PIN-nya mau pindah & center otomatis
+function MapRecenter({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (lat && lng) {
+      // Memaksa peta bergeser ke tempat yang diklik/dicari secara halus
+      map.setView([lat, lng], map.getZoom(), { animate: true });
+    }
+  }, [lat, lng, map]);
+  
+  return null;
+}
+
+// 3. Komponen untuk kotak pencarian alamat
 function SearchField({
   onChange,
 }: {
@@ -53,13 +67,15 @@ function SearchField({
   const map = useMap();
 
   useEffect(() => {
+    if (!map) return;
+
     const provider = new OpenStreetMapProvider();
 
     // @ts-ignore
     const searchControl = new GeoSearchControl({
       provider: provider,
-      style: "bar", // Model kotak input memanjang
-      showMarker: false, // Kita set false karena pin-nya bakal dikontrol sama state komponen utama kita
+      style: "bar",
+      showMarker: false,
       showPopup: false,
       marker: { icon: defaultIcon },
       retainZoomLevel: false,
@@ -68,15 +84,25 @@ function SearchField({
       searchLabel: "Cari lokasi / nama jalan...",
     });
 
-    map.addControl(searchControl);
+    // Timeout tipis agar Leaflet selesai inisialisasi DOM-nya duluan
+    const delayAdd = setTimeout(() => {
+      try {
+        map.addControl(searchControl);
+      } catch (err) {
+        console.error(err);
+      }
+    }, 50);
 
-    // Event ketika user memilih lokasi dari hasil pencarian
     map.on("geosearch/showlocation", (result: any) => {
-      onChange(result.location.y, result.location.x); // y = lat, x = lng
+      onChange(result.location.y, result.location.x);
     });
 
     return () => {
-      map.removeControl(searchControl);
+      clearTimeout(delayAdd);
+      map.off("geosearch/showlocation");
+      try {
+        map.removeControl(searchControl);
+      } catch (err) {}
     };
   }, [map, onChange]);
 
@@ -88,7 +114,7 @@ export default function LocationPicker({
   longitude,
   onChange,
 }: LocationPickerProps) {
-  // Default koordinat Jakarta jika data masih kosong
+  // Parsing koordinat dengan fallback ke Jakarta Pusat jika data kosong
   const lat = Number(latitude) || -6.2088;
   const lng = Number(longitude) || 106.8456;
 
@@ -107,15 +133,30 @@ export default function LocationPicker({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* Pasang fitur pendeteksi klik manual */}
+        {/* Pemantau klik manual */}
         <LocationMarker onChange={onChange} />
 
-        {/* Pasang fitur kotak pencarian lokasi */}
+        {/* Pemantau ketikan kotak pencarian */}
         <SearchField onChange={onChange} />
 
-        {/* Tampilkan pin/marker hanya jika koordinat sudah ada */}
+        {/* Penggerak kamera peta otomatis */}
+        <MapRecenter lat={lat} lng={lng} />
+
+        {/* Pin merah hanya muncul jika string latitude & longitude valid */}
         {latitude && longitude && (
-          <Marker position={[lat, lng]} icon={defaultIcon} />
+          <Marker 
+            position={[lat, lng]} 
+            icon={defaultIcon} 
+            eventHandlers={{
+              add: (e) => {
+                // Mengakses objek marker asli Leaflet secara langsung saat di-render
+                const marker = e.target;
+                if (marker.options) {
+                  marker.options.autoPan = false;
+                }
+              }
+            }}
+          />
         )}
       </MapContainer>
     </div>

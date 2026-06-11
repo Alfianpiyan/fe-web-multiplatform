@@ -1,44 +1,40 @@
-import api from "../src/lib/api";
+import api from "../src/lib/api"; // Sesuaikan path import api kamu
 
-export const getAllLaporanAdmin = () => {
-  return api.get("/admin");
+// Laporan
+export const getAllLaporan = () => {
+  return api.get("/admin/laporan"); // Sesuaikan dengan route di backend-mu
 };
 
-export const reviewLaporan = (
-  id: number,
-  data: Record<string, any>
-) => {
-  return api.patch(`/admin/review/${id}`, data);
+export const searchLaporanAdmin = (keyword: string) => {
+  return api.get(`/admin/laporan/search?keyword=${keyword}`);
+};
+
+export const reviewLaporan = (id: number, data: { kategori_id: number; notes: string }) => {
+  return api.patch(`/admin/laporan/${id}/review`, data);
 };
 
 export const verifyLaporan = (id: number) => {
-  return api.patch(`/admin/${id}/verifikasi`);
+  return api.patch(`/admin/laporan/${id}/verifikasi`);
 };
 
-export const rejectLaporan = (
-  id: number,
-  data: Record<string, any>
-) => {
-  return api.patch(`/admin/${id}/tolak`, data);
+export const rejectLaporan = (id: number, data: { alasan_penolakan: string }) => {
+  return api.patch(`/admin/laporan/${id}/tolak`, data);
 };
 
-export const updateStatusLaporan = (
-  id: number,
-  data: Record<string, any>
-) => {
-  return api.patch(`/admin/${id}/status`, data);
+export const updateStatusLaporan = (id: number, data: { status: string; visibility?: string; alasan_penolakan?: string }) => {
+  return api.patch(`/admin/laporan/${id}/status`, data);
 };
 
-export const createKategori = (
-  data: Record<string, any>
-) => {
+// Kategori
+export const getAllKategori = () => {
+  return api.get("/kategori");
+};
+
+export const createKategori = (data: { kategori: string }) => {
   return api.post("/kategori", data);
 };
 
-export const updateKategori = (
-  id: number,
-  data: Record<string, any>
-) => {
+export const updateKategori = (id: number, data: { kategori: string }) => {
   return api.patch(`/kategori/${id}`, data);
 };
 

@@ -3,7 +3,7 @@
 import { useAuth } from "@/src/context/AuthContext";
 
 import UserLaporan from "@/components/laporan/UserLaporanPage";
-// import AdminLaporan from "@/components/laporan/AdminLaporan";
+import AdminLaporan from "@/components/laporan/AdminLaporanPage";
 // import SuperAdminLaporan from "@/components/laporan/SuperAdminLaporan";
 
 export default function LaporanPage() {

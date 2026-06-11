@@ -6,6 +6,7 @@ import {
     useEffect,
     useState,
 } from "react";
+import { useRouter } from "next/navigation"; // Import useRouter
 
 type User = {
     id: number;
@@ -19,89 +20,52 @@ type AuthContextType = {
     user: User | null;
     token: string | null;
     loading: boolean;
-
-    login: (
-        token: string,
-        user: User
-    ) => void;
-
+    login: (token: string, user: User) => void;
     logout: () => void;
 };
 
-const AuthContext =
-    createContext<AuthContextType | null>(
-        null
-    );
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({
     children,
 }: {
     children: React.ReactNode;
 }) => {
-
-    const [user, setUser] =
-        useState<User | null>(null);
-
-    const [token, setToken] =
-        useState<string | null>(null);
-
-    const [loading, setLoading] =
-    useState(true);
+    const [user, setUser] = useState<User | null>(null);
+    const [token, setToken] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const router = useRouter(); // Inisialisasi router
 
     useEffect(() => {
+        const savedToken = localStorage.getItem("token");
+        const savedUser = localStorage.getItem("user");
 
-    const savedToken =
-        localStorage.getItem("token");
+        if (savedToken && savedUser) {
+            setToken(savedToken);
+            setUser(JSON.parse(savedUser));
+        }
+        setLoading(false);
+    }, []);
 
-    const savedUser =
-        localStorage.getItem("user");
-
-    if (
-        savedToken &&
-        savedUser
-    ) {
-        setToken(savedToken);
-
-        setUser(
-            JSON.parse(savedUser)
-        );
-    }
-
-    setLoading(false);
-
-}, []);
-
-    const login = (
-        token: string,
-        user: User
-    ) => {
-
-        localStorage.setItem(
-            "token",
-            token
-        );
-
-        localStorage.setItem(
-            "user",
-            JSON.stringify(user)
-        );
+    const login = (token: string, user: User) => {
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(user));
 
         setToken(token);
         setUser(user);
     };
 
     const logout = () => {
+        // Hapus data dari localStorage
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
 
-        localStorage.removeItem(
-            "token"
-        );
-
-        localStorage.removeItem(
-            "user"
-        );
-
+        // Reset state
         setToken(null);
         setUser(null);
+
+        // Pindahkan user ke halaman login
+        router.push("/login"); 
     };
 
     return (
@@ -120,14 +84,10 @@ export const AuthProvider = ({
 };
 
 export const useAuth = () => {
-
-    const context =
-        useContext(AuthContext);
+    const context = useContext(AuthContext);
 
     if (!context) {
-        throw new Error(
-            "useAuth harus dipakai dalam AuthProvider"
-        );
+        throw new Error("useAuth harus dipakai dalam AuthProvider");
     }
 
     return context;
