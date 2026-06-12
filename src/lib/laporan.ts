@@ -1,5 +1,7 @@
 import api from "./api";
 
+import axios from "axios";
+
 export interface LaporanData {
   kategori_id?: number | null;
   title?: string | null;
@@ -46,8 +48,9 @@ export const uploadLaporanImages = (
   });
 };
 
-export const submitLaporan = (id: number | string) => {
-  return api.patch(`/laporan/submit/${id}`);
+export const submitLaporan = async (id: number, formData: any) => {
+  // Kita kirim formData sebagai request body (payload) lewat PATCH
+  return await api.patch(`/laporan/submit/${id}`, formData);
 };
 
 // 🌟 BARU ditambahkan: Mengambil data feed laporan publik dari backend

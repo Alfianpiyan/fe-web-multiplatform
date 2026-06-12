@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   MapContainer,
   Marker,
@@ -37,7 +37,6 @@ function LocationMarker({
 }) {
   useMapEvents({
     click(e) {
-      // Mengambil koordinat pas diklik oleh user
       onChange(e.latlng.lat, e.latlng.lng);
     },
   });
@@ -50,7 +49,6 @@ function MapRecenter({ lat, lng }: { lat: number; lng: number }) {
   
   useEffect(() => {
     if (lat && lng) {
-      // Memaksa peta bergeser ke tempat yang diklik/dicari secara halus
       map.setView([lat, lng], map.getZoom(), { animate: true });
     }
   }, [lat, lng, map]);
@@ -58,7 +56,7 @@ function MapRecenter({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
-// 3. Komponen untuk kotak pencarian alamat
+// 3. Komponen untuk kotak pencarian alamat (Sudah Di-Fix Safe DOM-nya)
 function SearchField({
   onChange,
 }: {
@@ -67,7 +65,8 @@ function SearchField({
   const map = useMap();
 
   useEffect(() => {
-    if (!map) return;
+    // 🛡️ Pengaman: Jangan jalankan apa pun jika peta belum siap / di luar lingkungan browser
+    if (!map || typeof window === "undefined") return;
 
     const provider = new OpenStreetMapProvider();
 
@@ -84,25 +83,40 @@ function SearchField({
       searchLabel: "Cari lokasi / nama jalan...",
     });
 
-    // Timeout tipis agar Leaflet selesai inisialisasi DOM-nya duluan
+    let isMounted = true;
+
     const delayAdd = setTimeout(() => {
       try {
-        map.addControl(searchControl);
+        if (isMounted && map) {
+          map.addControl(searchControl);
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Gagal menempelkan kontrol pencarian:", err);
       }
-    }, 50);
+    }, 100);
 
-    map.on("geosearch/showlocation", (result: any) => {
-      onChange(result.location.y, result.location.x);
-    });
+    const handleSearchShow = (result: any) => {
+      if (result && result.location) {
+        onChange(result.location.y, result.location.x);
+      }
+    };
 
+    map.on("geosearch/showlocation", handleSearchShow);
+
+    // Fungsi pembersihan saat komponen dibongkar (Unmount)
     return () => {
+      isMounted = false;
       clearTimeout(delayAdd);
-      map.off("geosearch/showlocation");
+      map.off("geosearch/showlocation", handleSearchShow);
+      
       try {
-        map.removeControl(searchControl);
-      } catch (err) {}
+        // 🛡️ Cek eksistensi control sebelum dilepas agar terhindar dari error appendChild/removeChild
+        if (map && searchControl && typeof map.removeControl === "function") {
+          map.removeControl(searchControl);
+        }
+      } catch (err) {
+        console.warn("Pembersihan kontrol pencarian diabaikan aman:", err);
+      }
     };
   }, [map, onChange]);
 
@@ -114,9 +128,24 @@ export default function LocationPicker({
   longitude,
   onChange,
 }: LocationPickerProps) {
+  // Tambahan state pengaman client-side hydration
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Parsing koordinat dengan fallback ke Jakarta Pusat jika data kosong
   const lat = Number(latitude) || -6.2088;
   const lng = Number(longitude) || 106.8456;
+
+  if (!mounted) {
+    return (
+      <div style={{ height: "450px" }} className="w-full bg-neutral-100 animate-pulse rounded-xl flex items-center justify-center text-sm text-neutral-400">
+        Menyiapkan modul peta digital...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full relative rounded-xl overflow-hidden border border-gray-200 shadow-sm">
@@ -143,15 +172,14 @@ export default function LocationPicker({
         <MapRecenter lat={lat} lng={lng} />
 
         {/* Pin merah hanya muncul jika string latitude & longitude valid */}
-        {latitude && longitude && (
+        {latitude && longitude && !isNaN(lat) && !isNaN(lng) && (
           <Marker 
             position={[lat, lng]} 
             icon={defaultIcon} 
             eventHandlers={{
               add: (e) => {
-                // Mengakses objek marker asli Leaflet secara langsung saat di-render
                 const marker = e.target;
-                if (marker.options) {
+                if (marker && marker.options) {
                   marker.options.autoPan = false;
                 }
               }

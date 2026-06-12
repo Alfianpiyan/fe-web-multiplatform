@@ -1,43 +1,47 @@
-import api from "../src/lib/api"; // Sesuaikan path import api kamu
+import api from "../src/lib/api";
 
-// Laporan
+// ==========================================
+// 📋 LAYANAN ADMINISTRASI: LAPORAN
+// ==========================================
+
 export const getAllLaporan = () => {
-  return api.get("/admin/laporan"); // Sesuaikan dengan route di backend-mu
+  return api.get("/laporan"); 
 };
 
 export const searchLaporanAdmin = (keyword: string) => {
-  return api.get(`/admin/laporan/search?keyword=${keyword}`);
+  // Menghasilkan: /api/laporan/search
+  return api.get(`/laporan/search?keyword=${keyword}`);
 };
 
 export const reviewLaporan = (id: number, data: { kategori_id: number; notes: string }) => {
-  return api.patch(`/admin/laporan/${id}/review`, data);
+  // Menghasilkan: /api/laporan/review/:id
+  return api.patch(`/laporan/review/${id}`, data);
 };
 
-export const verifyLaporan = (id: number) => {
-  return api.patch(`/admin/laporan/${id}/verifikasi`);
-};
 
-export const rejectLaporan = (id: number, data: { alasan_penolakan: string }) => {
-  return api.patch(`/admin/laporan/${id}/tolak`, data);
-};
+// ==========================================
+// 📂 LAYANAN ADMINISTRASI: KATEGORI
+// ==========================================
 
-export const updateStatusLaporan = (id: number, data: { status: string; visibility?: string; alasan_penolakan?: string }) => {
-  return api.patch(`/admin/laporan/${id}/status`, data);
-};
+// services/adminService.ts
 
-// Kategori
+// 🌟 Mengambil kategori sekarang jalurnya seragam dan bersih
 export const getAllKategori = () => {
-  return api.get("/kategori");
+  return api.get("/laporan/public/kategori"); // 👈 Sesuaikan ke /public/kategori
+};
+// Menambah kategori baru
+export const createKategori = (data: { kategori: string; description: string }) => {
+  return api.post("/laporan/kategori", data); 
 };
 
-export const createKategori = (data: { kategori: string }) => {
-  return api.post("/kategori", data);
+
+export const updateKategori = (id: number, data: { kategori: string; description: string }) => {
+  return api.patch(`/laporan/kategori/${id}`, data);
 };
 
-export const updateKategori = (id: number, data: { kategori: string }) => {
-  return api.patch(`/kategori/${id}`, data);
-};
+// services/adminService.ts
 
 export const deleteKategori = (id: number) => {
-  return api.delete(`/kategori/${id}`);
+  // Menghasilkan URL: https://.../api/laporan/kategori/ID_KATEGORI
+  return api.delete(`/laporan/kategori/${id}`);
 };

@@ -8,7 +8,7 @@ import {
   updateDraftLaporan,
   uploadLaporanImages,
 } from "@/src/lib/laporan";
-import { getAllKategori } from "@/services/adminService"; // 🌟 Import service kategori kamu
+import { getAllKategori } from "@/services/adminService";
 
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -27,7 +27,7 @@ export default function CreateLaporanForm() {
   const router = useRouter();
   const [images, setImages] = useState<File[]>([]);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
-  const [kategoriList, setKategoriList] = useState<Kategori[]>([]); // 🌟 State list kategori dari DB
+  const [kategoriList, setKategoriList] = useState<Kategori[]>([]);
   const [draftId, setDraftId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,7 +43,6 @@ export default function CreateLaporanForm() {
     waktu_kejadian: "",
   });
 
-  // 🌟 Daftar kota yang didukung oleh sistem aplikasi pengaduan
   const daftarKota = [
     "Bandung",
     "Bogor",
@@ -59,7 +58,6 @@ export default function CreateLaporanForm() {
 
   const initForm = async () => {
     try {
-      // Ambil list kategori dan draf secara bersamaan
       const [resKategori, resDraft] = await Promise.all([
         getAllKategori().catch(() => ({ data: { data: [] } })),
         getDraftLaporan()
@@ -67,7 +65,12 @@ export default function CreateLaporanForm() {
 
       setKategoriList(Array.isArray(resKategori.data?.data) ? resKategori.data.data : []);
 
-      const draft = resDraft.data?.[0];
+      // Filter draf yang benar-benar berstatus 'draft' agar laporan yang sudah 'pending' tidak ikut muat ulang
+      const activeDrafts = Array.isArray(resDraft.data) 
+        ? resDraft.data.filter((d: any) => d.status === "draft")
+        : [];
+
+      const draft = activeDrafts[0];
 
       if (draft) {
         setDraftId(draft.id);
@@ -96,13 +99,14 @@ export default function CreateLaporanForm() {
           setPreviewImages(savedPreviews);
         }
       } else {
+        // Jika tidak ada draf aktif berstatus 'draft', buat draf baru yang bersih di DB
         const created = await createLaporan({});
         setDraftId(created.data.data.laporan_id);
       }
     } catch (err) {
       console.log("Gagal memuat draf laporan:", err);
     } finally {
-      setLoading(false);
+      loading && setLoading(false);
     }
   };
 
@@ -127,34 +131,51 @@ export default function CreateLaporanForm() {
     }
   };
 
+  // 🔥 FIX MASALAH 2: Akumulasi penambahan berkas gambar tanpa menghapus pilihan sebelumnya
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
 
     const files = Array.from(e.target.files);
     
-    if (files.length > 5) {
+    // Hitung total kombinasi gambar yang sudah ada + gambar baru yang dipilih
+    if (images.length + files.length > 5) {
       alert("Maksimal berkas foto bukti yang diizinkan adalah 5 gambar.");
       return;
     }
 
-    setImages(files);
+    // Gabungkan file baru ke state array gambar
+    const updatedImages = [...images, ...files];
+    setImages(updatedImages);
 
-    const previews = files.map((file) => URL.createObjectURL(file));
-    setPreviewImages(previews);
+    // Buat object URL preview baru dan gabungkan dengan preview yang lama
+    const newPreviews = files.map((file) => URL.createObjectURL(file));
+    setPreviewImages((prev) => [...prev, ...newPreviews]);
   };
 
   const handleSubmit = async () => {
     if (!draftId || isSubmitting) return;
 
-    // Validasi input kota sebelum kirim final
+    if (!form.title.trim()) {
+      alert("Silakan isi Judul Laporan terlebih dahulu!");
+      return;
+    }
+    if (!form.report_description.trim()) {
+      alert("Silakan isi Deskripsi Kronologi Kejadian terlebih dahulu!");
+      return;
+    }
     if (!form.city) {
       alert("Silakan pilih kota lokasi kejadian terlebih dahulu!");
+      return;
+    }
+    if (!form.location_description.trim()) {
+      alert("Silakan isi Lokasi Detail / Patokan Alamat terlebih dahulu!");
       return;
     }
 
     try {
       setIsSubmitting(true);
 
+      // 🔥 FIX MASALAH 1: Hanya kirim gambar jika user baru saja memasukkan file mentah di session ini
       if (images.length > 0) {
         const formData = new FormData();
         images.forEach((image) => {
@@ -166,11 +187,12 @@ export default function CreateLaporanForm() {
         console.log("Upload gambar sukses!");
       }
 
-      console.log("Sedang mengirimkan berkas laporan final...");
-      await submitLaporan(draftId);
+      console.log("Sedang mengirimkan berkas laporan final beserta payload...");
+      await submitLaporan(draftId, form); 
 
       alert("Laporan aduan masyarakat berhasil dikirim beserta seluruh gambar!");
       
+      // Bersihkan state local sebelum berpindah halaman
       setForm({
         kategori_id: 0,
         title: "",
@@ -184,13 +206,14 @@ export default function CreateLaporanForm() {
       setImages([]);
       setPreviewImages([]);
       
+      // Mengarahkan user kembali ke panel dashboard utama
       router.push("/dashboard/laporan");
       window.location.href = "/dashboard/laporan"; 
     } catch (err: any) {
       console.error("Gagal mengirim berkas aduan:", err);
       alert(
         err?.response?.data?.message || 
-        "Gagal memproses laporan. Pastikan berkas gambar tidak korup dan berukuran wajar."
+        "Gagal memproses laporan. Pastikan seluruh kolom wajib telah terisi."
       );
     } finally {
       setIsSubmitting(false);
@@ -206,7 +229,6 @@ export default function CreateLaporanForm() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-1 text-neutral-900">
-      {/* Bagian Atas / Judul Halaman */}
       <div>
         <h1 className="text-3xl font-bold text-red-600 tracking-tight">
           Buat Laporan
@@ -216,20 +238,14 @@ export default function CreateLaporanForm() {
         </p>
       </div>
 
-      {/* Grid Utama Layout 3 Kolom */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        
-        {/* PANEL KIRI (Ambil porsi lebar 2/3 halaman) */}
         <div className="lg:col-span-2 space-y-6">
-          
-          {/* Card Pengisian Teks Laporan */}
           <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm space-y-4">
             <h2 className="font-bold text-xl text-neutral-800 border-b pb-2">
               Informasi Laporan
             </h2>
 
             <div className="space-y-4">
-              {/* Dropdown Kategori Berdasarkan Database */}
               <div>
                 <label className="block text-sm font-semibold text-neutral-700 mb-1">Kategori Aduan</label>
                 <select
@@ -268,7 +284,6 @@ export default function CreateLaporanForm() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 🌟 TRANSFORMASI: Input Text Kota Diubah Menjadi Dropdown Select Pilihan Kota */}
                 <div>
                   <label className="block text-sm font-semibold text-neutral-700 mb-1">Kota / Kabupaten Kejadian</label>
                   <select
@@ -308,7 +323,6 @@ export default function CreateLaporanForm() {
             </div>
           </div>
 
-          {/* Card Upload Gambar & Pratinjau */}
           <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm space-y-4">
             <div>
               <h2 className="font-bold text-xl text-neutral-800">Bukti Lampiran Gambar</h2>
@@ -336,7 +350,6 @@ export default function CreateLaporanForm() {
               </span>
             </label>
 
-            {/* Kotak Preview Gambar Terpilih */}
             {previewImages.length > 0 && (
               <div className="border border-neutral-100 rounded-xl p-4 bg-neutral-50/50 space-y-3">
                 <h3 className="font-semibold text-neutral-700 text-xs tracking-wider uppercase">
@@ -374,7 +387,6 @@ export default function CreateLaporanForm() {
           </div>
         </div>
 
-        {/* PANEL KANAN: SIDEBAR PETA & SUBMIT */}
         <div className="space-y-6 lg:sticky lg:top-6">
           <div className="bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm space-y-4 relative z-10">
             <div>
@@ -384,7 +396,6 @@ export default function CreateLaporanForm() {
               <p className="text-xs text-neutral-400 mt-0.5">Cari alamat atau klik titik di peta secara presisi.</p>
             </div>
             
-            {/* Wrapper Komponen Map */}
             <div className="rounded-xl overflow-hidden border border-neutral-100 shadow-inner">
               <LocationPicker
                 latitude={form.latitude}
@@ -410,15 +421,13 @@ export default function CreateLaporanForm() {
               />
             </div>
 
-            {/* Note Kebijakan Informasi */}
             <div className="bg-neutral-50 rounded-xl p-3.5 text-xs text-neutral-500 space-y-1 border border-neutral-100">
               <p className="font-bold text-neutral-700">💡 Sistem Pengarsipan:</p>
               <p className="leading-relaxed">
-                Setiap kolom yang diubah otomatis tersimpan ke server cloud. Anda dapat menutup atau meninggalkan halaman ini sewaktu-waktu tanpa kehilangan data masukan.
+                Every fields modified are automatically backed up to server. data is preserved securely.
               </p>
             </div>
 
-            {/* Tombol Eksekusi Aksi Pengiriman */}
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
