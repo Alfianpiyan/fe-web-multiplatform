@@ -16,7 +16,7 @@ export const getMyLaporan = () => {
 
 // Mengambil detail laporan private/auth (Digunakan oleh user/admin untuk halaman detail)
 export const getDetailLaporan = (id: string | number) => {
-  return api.get(`/laporan/detail/${id}`);
+  return api.get(`/laporan/${id}`);
 };
 
 // Mengambil detail laporan khusus milik saya sendiri (Rute alternatif me/:id)

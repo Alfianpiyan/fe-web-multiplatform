@@ -17,7 +17,10 @@ import {
   Pencil
 } from "lucide-react";
 
-import { getAllLaporan, getAllKategori, createKategori, deleteKategori, updateKategori } from "@/services/adminService";
+// 🔄 PERBAIKAN: Ambil getPublicLaporan dari service baru yang satu pintu
+import { getPublicLaporan } from "@/services/laporanService"; 
+// Sisa pengelolaan kategori tetap dari adminService
+import { getAllKategori, createKategori, deleteKategori, updateKategori } from "@/services/adminService";
 
 interface Laporan {
   id: number;
@@ -51,26 +54,26 @@ export default function AdminLaporan() {
   }, []);
 
   const fetchAdminData = async () => {
-  setLoading(true);
-  try {
-    const responseLaporan = await getAllLaporan();
-    
-    // 🕵️ TAMBAHKAN INI:
-    console.log("=== ISI RAW RESPONSE LAPORAN ===", responseLaporan);
-    
-    // Coba deteksi struktur data
-    const data = responseLaporan?.data || responseLaporan || [];
-    
-    // Log hasil deteksi
-    console.log("=== HASIL PROSES DATA ===", data);
-    
-    setLaporan(Array.isArray(data) ? data : (data.data || []));
-  } catch (error) {
-    console.error("❌ ERROR SAAT FETCH:", error);
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+    try {
+      // 🔄 PERBAIKAN 1: Panggil getPublicLaporan() (Backend otomatis baca token admin kamu)
+      const responseLaporan = await getPublicLaporan();
+      const resKategori = await getAllKategori();
+      
+      // Ambil data array laporan secara aman sesuai restrukturisasi payload
+      const dataLaporan = responseLaporan?.data?.data || responseLaporan?.data || responseLaporan || [];
+      setLaporan(Array.isArray(dataLaporan) ? dataLaporan : []);
+
+      // 🔄 PERBAIKAN 2: Simpan data kategori ke dalam state agar list-nya muncul di modal
+      const dataKategori = resKategori?.data?.data || resKategori?.data || resKategori || [];
+      setKategoriList(Array.isArray(dataKategori) ? dataKategori : []);
+      
+    } catch (error) {
+      console.error("❌ ERROR SAAT FETCH DASHBOARD ADMIN:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmitKategori = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,6 +159,7 @@ export default function AdminLaporan() {
   };
 
   const formatStatusText = (status: string) => {
+    if (!status) return "-";
     return status.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
@@ -234,7 +238,7 @@ export default function AdminLaporan() {
           filtered.map((item) => (
             <Link
               key={item.id}
-              href={`/dashboard/admin/laporan/${item.id}`}
+              href={`/dashboard/laporan/${item.id}`}
               className="block bg-white border border-neutral-100 rounded-2xl p-5 hover:shadow-md hover:border-red-100 transition-all duration-200 shadow-sm"
             >
               <div className="flex justify-between items-center gap-4">
@@ -243,7 +247,7 @@ export default function AdminLaporan() {
                     {item.title}
                   </h2>
                   <p className="text-xs font-medium text-neutral-400">
-                    Masuk pada: {new Date(item.created_at).toLocaleDateString("id-ID")}
+                    Masuk pada: {item.created_at ? new Date(item.created_at).toLocaleDateString("id-ID") : "-"}
                   </p>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide border ${statusColor(item.status)}`}>
@@ -256,7 +260,7 @@ export default function AdminLaporan() {
         )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL KELOLA KATEGORI */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm" onClick={handleCloseModal} />
@@ -267,24 +271,29 @@ export default function AdminLaporan() {
             </div>
             
             <form onSubmit={handleSubmitKategori} className="space-y-4 mb-5">
-              <input type="text" placeholder="Nama Kategori" value={namaKategoriBaru} onChange={(e) => setNamaKategoriBaru(e.target.value)} className="border p-2.5 rounded-xl w-full text-sm" required />
-              <textarea placeholder="Deskripsi" value={deskripsiKategoriBaru} onChange={(e) => setDeskripsiKategoriBaru(e.target.value)} className="border p-2.5 rounded-xl w-full h-20 text-sm" />
+              <input type="text" placeholder="Nama Kategori" value={namaKategoriBaru} onChange={(e) => setNamaKategoriBaru(e.target.value)} className="border p-2.5 rounded-xl w-full text-sm text-neutral-800" required />
+              <textarea placeholder="Deskripsi Kategori" value={deskripsiKategoriBaru} onChange={(e) => setDeskripsiKategoriBaru(e.target.value)} className="border p-2.5 rounded-xl w-full h-20 text-sm text-neutral-800" />
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-xs font-semibold rounded-xl bg-neutral-100">Batal</button>
+                <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-xs font-semibold rounded-xl bg-neutral-100 text-neutral-700">Batal</button>
                 <button type="submit" className="px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 text-white">Simpan</button>
               </div>
             </form>
 
-            <div className="border-t pt-3 max-h-60 overflow-y-auto">
-              {kategoriList.map((kat) => (
-                <div key={kat.id} className="flex justify-between items-center py-2 border-b text-sm">
-                  <span>{kat.kategori}</span>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleOpenEditModal(kat)}><Pencil size={14} className="text-blue-500" /></button>
-                    <button onClick={() => handleDeleteKategori(kat.id)}><Trash2 size={14} className="text-red-500" /></button>
+            <div className="border-t pt-3 max-h-60 overflow-y-auto space-y-1">
+              <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Daftar Aktif</p>
+              {kategoriList.length === 0 ? (
+                <p className="text-xs text-neutral-400 italic">Belum ada kategori yang terdaftar.</p>
+              ) : (
+                kategoriList.map((kat) => (
+                  <div key={kat.id} className="flex justify-between items-center py-2 px-1 border-b hover:bg-neutral-50 rounded-lg text-sm">
+                    <span className="font-medium text-neutral-700">{kat.kategori}</span>
+                    <div className="flex gap-3">
+                      <button type="button" onClick={() => handleOpenEditModal(kat)} title="Edit"><Pencil size={14} className="text-blue-500 hover:text-blue-700" /></button>
+                      <button type="button" onClick={() => handleDeleteKategori(kat.id)} title="Hapus"><Trash2 size={14} className="text-red-500 hover:text-red-700" /></button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -298,7 +307,7 @@ function StatCard({ title, value, icon, iconColor, bgColor }: any) {
     <div className="bg-white border border-neutral-100 rounded-2xl p-5 shadow-sm">
       <div className={`p-2 rounded-xl w-fit ${bgColor} ${iconColor}`}>{icon}</div>
       <div className="mt-4 text-2xl font-extrabold text-neutral-800">{value}</div>
-      <p className="text-xs text-neutral-400">{title}</p>
+      <p className="text-xs text-neutral-400 font-medium">{title}</p>
     </div>
   );
 }
