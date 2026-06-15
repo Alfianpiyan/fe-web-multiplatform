@@ -18,6 +18,13 @@ export const reviewLaporan = (id: number, data: { kategori_id: number; notes: st
   return api.patch(`/laporan/review/${id}`, data);
 };
 
+export const updateStatusLaporan = (id: number | string, status: string, visibility?: string) => {
+  // Pastikan parameter 'visibility' ikut dimasukkan ke dalam body data request POST/PATCH
+  return api.patch(`/laporan/${id}/status`, { 
+    status, 
+    visibility 
+  });
+};
 
 // ==========================================
 // 📂 LAYANAN ADMINISTRASI: KATEGORI

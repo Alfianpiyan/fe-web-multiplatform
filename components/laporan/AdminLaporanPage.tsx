@@ -10,16 +10,22 @@ import {
   CheckCircle2,
   XCircle,
   ChevronRight,
-  Filter,
+  SlidersHorizontal,
   FolderPlus,
   Trash2,
   X,
-  Pencil
+  Pencil,
+  Timer,
+  ScanSearch,
+  Hammer,
+  BadgeCheck,
+  Ban,
+  Globe,
+  Lock,
 } from "lucide-react";
 
-// 🔄 PERBAIKAN: Ambil getPublicLaporan dari service baru yang satu pintu
-import { getPublicLaporan } from "@/services/laporanService"; 
-// Sisa pengelolaan kategori tetap dari adminService
+import { getPublicLaporan } from "@/services/laporanService";
+import { updateStatusLaporan } from "@/services/adminService";
 import { getAllKategori, createKategori, deleteKategori, updateKategori } from "@/services/adminService";
 
 interface Laporan {
@@ -27,6 +33,7 @@ interface Laporan {
   title: string;
   status: string;
   created_at: string;
+  visibility?: "public" | "private";
 }
 
 interface Kategori {
@@ -42,7 +49,6 @@ export default function AdminLaporan() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
-  // State Modal Kategori
   const [namaKategoriBaru, setNamaKategoriBaru] = useState("");
   const [deskripsiKategoriBaru, setDeskripsiKategoriBaru] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -56,22 +62,59 @@ export default function AdminLaporan() {
   const fetchAdminData = async () => {
     setLoading(true);
     try {
-      // 🔄 PERBAIKAN 1: Panggil getPublicLaporan() (Backend otomatis baca token admin kamu)
       const responseLaporan = await getPublicLaporan();
       const resKategori = await getAllKategori();
-      
-      // Ambil data array laporan secara aman sesuai restrukturisasi payload
+
       const dataLaporan = responseLaporan?.data?.data || responseLaporan?.data || responseLaporan || [];
       setLaporan(Array.isArray(dataLaporan) ? dataLaporan : []);
 
-      // 🔄 PERBAIKAN 2: Simpan data kategori ke dalam state agar list-nya muncul di modal
       const dataKategori = resKategori?.data?.data || resKategori?.data || resKategori || [];
       setKategoriList(Array.isArray(dataKategori) ? dataKategori : []);
-      
     } catch (error) {
-      console.error("❌ ERROR SAAT FETCH DASHBOARD ADMIN:", error);
+      console.error("Gagal fetch dashboard admin:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVisibilityChange = async (e: React.ChangeEvent<HTMLSelectElement>, id: number, currentStatus: string) => {
+    const newVisibility = e.target.value;
+    try {
+      await updateStatusLaporan(id, currentStatus, newVisibility);
+      alert("Visibilitas laporan berhasil diperbarui!");
+      setLaporan((prevLaporan) =>
+        prevLaporan.map((item) =>
+          item.id === id ? { ...item, visibility: newVisibility as "public" | "private" } : item
+        )
+      );
+    } catch (error: any) {
+      alert("Gagal memperbarui visibilitas");
+    }
+  };
+
+  const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>, id: number) => {
+    const statusBaru = e.target.value;
+    const laporanSaatIni = laporan.find((item) => item.id === id);
+    const visibilityDefault = statusBaru === "selesai" ? (laporanSaatIni?.visibility || "public") : undefined;
+
+    try {
+      await updateStatusLaporan(id, statusBaru, visibilityDefault);
+      alert("Status laporan berhasil diperbarui!");
+      setLaporan((prevLaporan) =>
+        prevLaporan.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status: statusBaru,
+                visibility: visibilityDefault ? (visibilityDefault as "public" | "private") : item.visibility,
+              }
+            : item
+        )
+      );
+    } catch (error: any) {
+      const pesanError = error.response?.data?.message || "Gagal memperbarui status";
+      alert(`Waduh: ${pesanError}`);
+      e.target.value = laporanSaatIni?.status || "pending";
     }
   };
 
@@ -83,19 +126,19 @@ export default function AdminLaporan() {
       if (isEditMode && selectedKategoriId) {
         await updateKategori(selectedKategoriId, {
           kategori: namaKategoriBaru,
-          description: deskripsiKategoriBaru
+          description: deskripsiKategoriBaru,
         });
         alert("Kategori berhasil diperbarui!");
       } else {
-        await createKategori({ 
-          kategori: namaKategoriBaru, 
-          description: deskripsiKategoriBaru 
-        }); 
+        await createKategori({
+          kategori: namaKategoriBaru,
+          description: deskripsiKategoriBaru,
+        });
         alert("Kategori baru berhasil ditambahkan!");
       }
-      
+
       handleCloseModal();
-      fetchAdminData();        
+      fetchAdminData();
     } catch (error: any) {
       const pesanError = error.response?.data?.message || "Gagal memproses kategori";
       alert(`Waduh: ${pesanError}`);
@@ -107,7 +150,7 @@ export default function AdminLaporan() {
     setSelectedKategoriId(item.id);
     setNamaKategoriBaru(item.kategori);
     setDeskripsiKategoriBaru(item.description || "");
-    setIsModalOpen(true); 
+    setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
@@ -123,24 +166,22 @@ export default function AdminLaporan() {
     try {
       await deleteKategori(id);
       alert("Kategori berhasil dihapus!");
-      fetchAdminData(); 
+      fetchAdminData();
     } catch (error: any) {
       alert("Gagal menghapus kategori");
     }
   };
 
-  // --- Perhitungan Statistik ---
   const pending = laporan.filter((item) => item.status === "pending").length;
   const diperiksa = laporan.filter((item) => item.status === "diperiksa" || item.status === "diverifikasi").length;
   const tindakLanjut = laporan.filter((item) => item.status === "tindak_lanjut").length;
   const selesai = laporan.filter((item) => item.status === "selesai").length;
   const ditolak = laporan.filter((item) => item.status === "ditolak").length;
 
-  // --- Logika Filter ---
   const filtered = laporan.filter((item) => {
     const matchesSearch = item.title?.toLowerCase().includes(search.toLowerCase());
     const s = item.status?.toLowerCase();
-    
+
     if (statusFilter === "all") return matchesSearch;
     if (statusFilter === "diperiksa") return matchesSearch && (s === "diperiksa" || s === "diverifikasi");
     return matchesSearch && s === statusFilter.toLowerCase();
@@ -158,11 +199,6 @@ export default function AdminLaporan() {
     }
   };
 
-  const formatStatusText = (status: string) => {
-    if (!status) return "-";
-    return status.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px] text-neutral-500 font-medium">
@@ -173,8 +209,6 @@ export default function AdminLaporan() {
 
   return (
     <div className="space-y-8 p-1 relative text-neutral-900">
-      
-      {/* Header Utama */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-neutral-100 pb-4">
         <div>
           <h1 className="text-3xl font-bold text-red-600 tracking-tight">Manajemen Laporan Masyarakat</h1>
@@ -189,7 +223,6 @@ export default function AdminLaporan() {
         </button>
       </div>
 
-      {/* Statistik */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard title="Pending" value={pending} icon={<Clock3 size={22} />} iconColor="text-yellow-600" bgColor="bg-yellow-50" />
         <StatCard title="Diperiksa" value={diperiksa} icon={<ClipboardCheck size={22} />} iconColor="text-blue-600" bgColor="bg-blue-50" />
@@ -198,7 +231,6 @@ export default function AdminLaporan() {
         <StatCard title="Ditolak" value={ditolak} icon={<XCircle size={22} />} iconColor="text-red-600" bgColor="bg-red-50" />
       </div>
 
-      {/* Search & Filter */}
       <div className="flex gap-3 items-center">
         <div className="bg-white border border-neutral-200 rounded-2xl p-3 flex-1 shadow-sm flex items-center relative">
           <Search size={18} className="absolute left-4 text-neutral-400" />
@@ -212,7 +244,7 @@ export default function AdminLaporan() {
         </div>
 
         <div className="bg-white border border-neutral-200 rounded-2xl p-3 shadow-sm flex items-center gap-2 shrink-0">
-          <Filter size={16} className="text-neutral-400" />
+          <SlidersHorizontal size={16} className="text-neutral-400" />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -228,7 +260,6 @@ export default function AdminLaporan() {
         </div>
       </div>
 
-      {/* List Laporan */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <div className="bg-white text-neutral-500 border border-neutral-100 rounded-2xl p-12 text-center shadow-sm">
@@ -241,7 +272,7 @@ export default function AdminLaporan() {
               href={`/dashboard/laporan/${item.id}`}
               className="block bg-white border border-neutral-100 rounded-2xl p-5 hover:shadow-md hover:border-red-100 transition-all duration-200 shadow-sm"
             >
-              <div className="flex justify-between items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <div className="space-y-1.5 min-w-0 flex-1">
                   <h2 className="font-semibold text-neutral-800 text-base sm:text-lg truncate">
                     {item.title}
@@ -250,17 +281,45 @@ export default function AdminLaporan() {
                     Masuk pada: {item.created_at ? new Date(item.created_at).toLocaleDateString("id-ID") : "-"}
                   </p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide border ${statusColor(item.status)}`}>
-                  {formatStatusText(item.status)}
-                </span>
-                <ChevronRight size={18} className="text-neutral-400" />
+
+                <div
+                  className="flex flex-wrap items-center gap-2 self-end sm:self-auto"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
+                  <select
+                    value={item.status}
+                    onChange={(e) => handleStatusChange(e, item.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold tracking-wide border cursor-pointer focus:outline-none transition-all shadow-sm ${statusColor(item.status)}`}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="diperiksa">Diperiksa</option>
+                    <option value="tindak_lanjut">Tindak Lanjut</option>
+                    <option value="selesai">Selesai</option>
+                    <option value="ditolak">Ditolak</option>
+                  </select>
+
+                  {item.status === "selesai" && (
+                    <select
+                      value={item.visibility || "public"}
+                      onChange={(e) => handleVisibilityChange(e, item.id, item.status)}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-neutral-100 text-neutral-800 border border-neutral-200 cursor-pointer focus:outline-none transition-all shadow-sm animate-in fade-in slide-in-from-left-2 duration-200"
+                    >
+                      <option value="public">Publik (Semua Orang)</option>
+                      <option value="private">Privat (Internal)</option>
+                    </select>
+                  )}
+
+                  <ChevronRight size={18} className="text-neutral-400 hidden sm:block ml-1" />
+                </div>
               </div>
             </Link>
           ))
         )}
       </div>
 
-      {/* MODAL KELOLA KATEGORI */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm" onClick={handleCloseModal} />
@@ -269,10 +328,22 @@ export default function AdminLaporan() {
               <h3 className="text-lg font-bold">{isEditMode ? "Edit Kategori" : "Kelola Kategori"}</h3>
               <button onClick={handleCloseModal}><X size={18} /></button>
             </div>
-            
+
             <form onSubmit={handleSubmitKategori} className="space-y-4 mb-5">
-              <input type="text" placeholder="Nama Kategori" value={namaKategoriBaru} onChange={(e) => setNamaKategoriBaru(e.target.value)} className="border p-2.5 rounded-xl w-full text-sm text-neutral-800" required />
-              <textarea placeholder="Deskripsi Kategori" value={deskripsiKategoriBaru} onChange={(e) => setDeskripsiKategoriBaru(e.target.value)} className="border p-2.5 rounded-xl w-full h-20 text-sm text-neutral-800" />
+              <input
+                type="text"
+                placeholder="Nama Kategori"
+                value={namaKategoriBaru}
+                onChange={(e) => setNamaKategoriBaru(e.target.value)}
+                className="border p-2.5 rounded-xl w-full text-sm text-neutral-800"
+                required
+              />
+              <textarea
+                placeholder="Deskripsi Kategori"
+                value={deskripsiKategoriBaru}
+                onChange={(e) => setDeskripsiKategoriBaru(e.target.value)}
+                className="border p-2.5 rounded-xl w-full h-20 text-sm text-neutral-800"
+              />
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-xs font-semibold rounded-xl bg-neutral-100 text-neutral-700">Batal</button>
                 <button type="submit" className="px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 text-white">Simpan</button>
@@ -288,8 +359,12 @@ export default function AdminLaporan() {
                   <div key={kat.id} className="flex justify-between items-center py-2 px-1 border-b hover:bg-neutral-50 rounded-lg text-sm">
                     <span className="font-medium text-neutral-700">{kat.kategori}</span>
                     <div className="flex gap-3">
-                      <button type="button" onClick={() => handleOpenEditModal(kat)} title="Edit"><Pencil size={14} className="text-blue-500 hover:text-blue-700" /></button>
-                      <button type="button" onClick={() => handleDeleteKategori(kat.id)} title="Hapus"><Trash2 size={14} className="text-red-500 hover:text-red-700" /></button>
+                      <button type="button" onClick={() => handleOpenEditModal(kat)} title="Edit">
+                        <Pencil size={14} className="text-blue-500 hover:text-blue-700" />
+                      </button>
+                      <button type="button" onClick={() => handleDeleteKategori(kat.id)} title="Hapus">
+                        <Trash2 size={14} className="text-red-500 hover:text-red-700" />
+                      </button>
                     </div>
                   </div>
                 ))

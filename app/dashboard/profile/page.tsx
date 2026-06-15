@@ -122,31 +122,7 @@ export default function ProfilePage() {
           </div>
 
           {/* SECTION KEAMANAN AKUN */}
-          <div className="border-t border-slate-100 pt-6 space-y-4">
-            <div>
-              <h3 className="font-bold text-base text-slate-800 tracking-tight flex items-center gap-2">
-                <KeyRound size={18} className="text-slate-400" />
-                Keamanan & Password
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Gunakan password yang kuat demi menjaga kerahasiaan data laporan Anda.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-slate-200 rounded-xl bg-slate-50/30">
-              <div>
-                <p className="text-sm font-semibold text-slate-800">Kata Sandi Akun</p>
-                <p className="text-xs text-slate-500 mt-0.5">Terakhir diubah: Sudah dikunci oleh sistem enkripsi</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => alert("Fitur ubah password dapat kamu integrasikan dengan endpoint API auth/update-password ya, bre!")}
-                className="px-4 py-2 bg-slate-950 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition-colors shadow-sm text-center"
-              >
-                Ubah Password
-              </button>
-            </div>
-          </div>
+          
 
         </div>
 

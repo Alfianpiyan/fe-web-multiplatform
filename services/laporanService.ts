@@ -1,8 +1,44 @@
 import api from "../src/lib/api"; // Sesuaikan dengan path instance atau config Axios kamu
 
-/** ==========================================
- * 1. FITUR UTAMA & SUBSCRIPTION LAPORAN
- * ========================================== */
+export interface LaporanData {
+  kategori_id?: number | null;
+  title?: string | null;
+  report_description?: string | null;
+  city?: string | null;
+  location_description?: string | null;
+  latitude?: string | null;
+  longitude?: string | null;
+  waktu_kejadian?: string | null;
+}
+
+// ========================================================
+// 1. FITUR AMBIL DATA DETAIL (USER vs ADMIN)
+// ========================================================
+
+// 👥 Dipakai oleh USER biasa untuk melihat detail aduan miliknya sendiri (GET: /api/laporan/me/:id)
+export const getMyDetailLaporan = (id: number | string) => {
+  return api.get(`/laporan/me/${id}`);
+};
+
+// 🕵️ Dipakai oleh ADMIN / PETUGAS untuk melihat detail laporan privat di panel admin (GET: /api/laporan/detail/:id)
+export const getDetailLaporanAdmin = (id: string | number) => {
+  return api.get(`/laporan/${id}`); 
+};
+
+// 🌐 Dipakai untuk mengambil detail dasar publik (GET: /api/laporan/:id)
+export const getDetailLaporan = (id: number | string) => {
+  return api.get(`/laporan/${id}`);
+};
+
+// 📜 Mengambil riwayat log perkembangan status laporan (Timeline)
+export const getLaporanTimeline = (id: string | number) => {
+  return api.get(`/laporan/${id}/timeline`);
+};
+
+
+// ========================================================
+// 2. FITUR UTAMA & FEED PENGADUAN USER
+// ========================================================
 
 // Mengambil seluruh daftar laporan publik yang transparan (Feed Publik)
 export const getPublicLaporan = () => {
@@ -14,37 +50,17 @@ export const getMyLaporan = () => {
   return api.get("/laporan/me");
 };
 
-// Mengambil detail laporan private/auth (Digunakan oleh user/admin untuk halaman detail)
-export const getDetailLaporan = (id: string | number) => {
-  return api.get(`/laporan/${id}`);
-};
-
-// Mengambil detail laporan khusus milik saya sendiri (Rute alternatif me/:id)
-export const getMyDetailLaporan = (id: string | number) => {
-  return api.get(`/laporan/me/${id}`);
-};
-
-// Mengambil detail laporan publik tanpa guard ketat (Rute /:id paling bawah di backend)
-export const getPublicDetailLaporan = (id: string | number) => {
-  return api.get(`/laporan/${id}`);
-};
-
-// Mengambil riwayat log perkembangan status laporan (Timeline)
-export const getLaporanTimeline = (id: string | number) => {
-  return api.get(`/laporan/${id}/timeline`);
-};
-
-
-/** ==========================================
- * 2. FITUR DRAF / PENGONSERAN ADUAN
- * ========================================== */
-
-// Membuat aduan baru (bisa langsung jadi draf atau laporan tergantung logika backend)
+// Membuat aduan baru resmi
 export const createLaporan = (formData: FormData) => {
   return api.post("/laporan/create", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
 };
+
+
+// ========================================================
+// 3. FITUR DRAF / PENGONSERAN ADUAN
+// ========================================================
 
 // Mengambil seluruh draf aduan milik saya yang belum di-submit
 export const getMyDraftLaporan = () => {
@@ -74,11 +90,57 @@ export const uploadLaporanImages = (id: string | number, formData: FormData) => 
 };
 
 
-/** ==========================================
- * 3. DOKUMENTASI PROGRESS LAPANGAN (ADMIN & USER)
- * ========================================== */
+// ========================================================
+// 4. DISKUSI PRIVATE (INTERNAL COMMENT PETUGAS)
+// ========================================================
 
-// Admin mengunggah foto perkembangan penanganan lapangan (Gunakan middleware array images)
+// Mengambil seluruh riwayat obrolan diskusi privat antara pelapor dan petugas
+// Mengambil seluruh riwayat obrolan diskusi privat antara pelapor dan petugas
+export const getInternalComments = (id: string | number) => {
+  return api.get(`/laporan/${id}/internal-comment`);
+};
+
+// Mengirim pesan obrolan privat baru ke dalam room laporan
+export const createInternalComment = (id: string | number, text: string) => {
+  return api.post(`/laporan/${id}/internal-comment`, { 
+    komentar: text,
+    message: text,
+    text: text
+  });
+};
+// Menghapus salah satu pesan obrolan privat
+export const deleteInternalComment = (commentId: string | number) => {
+  return api.delete(`/laporan/internal-comment/${commentId}`);
+};
+
+
+// ========================================================
+// 5. KOMENTAR PUBLIK (FEEDBACK MASYARAKAT)
+// ========================================================
+
+// Masyarakat memberikan komentar terbuka di laporan publik (Key body disesuaikan dengan backend: { message })
+export const createPublicComment = async (id: string | number, teksKomentar: string) => {
+  return await api.post(`/laporan/${id}/comment`, { 
+    komentar: teksKomentar // 🚀 PASTIKAN KEY-NYA ADALAH "komentar"
+  });
+};
+
+// Mengambil seluruh daftar komentar publik dari masyarakat luas
+export const getPublicComments = (id: string | number) => {
+  return api.get(`/laporan/${id}/comment`);
+};
+
+// Menghapus komentar publik tertentu
+export const deletePublicComment = (commentId: string | number) => {
+  return api.delete(`/laporan/comment/${commentId}`);
+};
+
+
+// ========================================================
+// 6. DOKUMENTASI PROGRESS LAPANGAN (Hanya Admin)
+// ========================================================
+
+// Admin mengunggah foto perkembangan penanganan lapangan
 export const uploadProgressImage = (id: string | number, formData: FormData) => {
   return api.post(`/laporan/${id}/progress`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
@@ -91,52 +153,12 @@ export const getProgressImages = (id: string | number) => {
 };
 
 // Admin memperbarui deskripsi atau teks keterangan progres penanganan
-export const updateProgressDescription = (id: string | number, description: string) => {
-  return api.patch(`/laporan/${id}/progress`, { description });
+// Admin memperbarui deskripsi atau teks keterangan progres penanganan berdasarkan ID baris progres
+export const updateProgressDescription = (progressId: string | number, description: string) => {
+  return api.patch(`/laporan/progress/${progressId}`, { description });
 };
 
 // Admin menghapus salah satu foto progres di lapangan berdasarkan ID Gambar
 export const deleteProgressImage = (imageId: string | number) => {
   return api.delete(`/laporan/progress-image/${imageId}`);
-};
-
-
-/** ==========================================
- * 4. DISKUSI PRIVATE (INTERNAL COMMENT)
- * ========================================== */
-
-// Mengambil seluruh riwayat obrolan diskusi privat antara pelapor dan petugas
-export const getDiskusiLaporan = (id: string | number) => {
-  return api.get(`/laporan/${id}/internal-comment`);
-};
-
-// Mengirim pesan obrolan privat baru ke dalam room laporan
-export const kirimPesanDiskusi = (id: string | number, message: string) => {
-  // CATATAN: Sesuaikan key body 'comment' dengan apa yang di-destructure di controller backend-mu
-  return api.post(`/laporan/${id}/internal-comment`, { comment: message });
-};
-
-// Menghapus salah satu pesan obrolan privat
-export const deleteInternalComment = (commentId: string | number) => {
-  return api.delete(`/laporan/internal-comment/${commentId}`);
-};
-
-
-/** ==========================================
- * 5. KOMENTAR PUBLIK (FEEDBACK MASYARAKAT)
- * ========================================== */
-
-// Masyarakat memberikan komentar terbuka di laporan publik
-export const createPublicComment = (id: string | number, comment: string) => {
-  return api.post(`/laporan/${id}/comment`, { comment });
-};
-
-// Mengambil seluruh daftar komentar publik dari masyarakat luas
-export const getPublicComments = (id: string | number) => {
-  return api.get(`/laporan/${id}/comment`);
-};
-
-// Menghapus komentar publik tertentu
-export const deletePublicComment = (commentId: string | number) => {
-  return api.delete(`/laporan/comment/${commentId}`);
 };

@@ -12,6 +12,7 @@ import {
   XCircle,
   ChevronRight,
   Filter,
+  SlidersHorizontal,
 } from "lucide-react";
 
 import { getMyLaporan } from "@/src/lib/laporan";
@@ -26,7 +27,7 @@ interface Laporan {
 export default function UserLaporan() {
   const [laporan, setLaporan] = useState<Laporan[]>([]);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all"); // 🌟 State baru untuk filter status dropdown
+  const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -49,28 +50,24 @@ export default function UserLaporan() {
     }
   };
 
-  // Menghitung statistik berdasarkan status laporan
   const pending = laporan.filter((item) => item.status === "pending").length;
   const diperiksa = laporan.filter((item) => item.status === "diperiksa" || item.status === "diverifikasi").length;
   const tindakLanjut = laporan.filter((item) => item.status === "tindak_lanjut").length;
   const selesai = laporan.filter((item) => item.status === "selesai").length;
   const ditolak = laporan.filter((item) => item.status === "ditolak").length;
 
-  // 🌟 LOGIKA FILTER SINKRON: Menyaring berdasarkan Teks Pencarian DAN Pilihan Dropdown Status sekaligus
   const filtered = laporan.filter((item) => {
     const matchesSearch = item.title?.toLowerCase().includes(search.toLowerCase());
-    
+
     if (statusFilter === "all") {
       return matchesSearch;
     } else if (statusFilter === "diperiksa") {
-      // Menggabungkan status diperiksa dan diverifikasi ke dalam satu filter kriteria tab/dropdown
       return matchesSearch && (item.status === "diperiksa" || item.status === "diverifikasi");
     } else {
       return matchesSearch && item.status === statusFilter;
     }
   });
 
-  // Helper warna badge status di dalam list
   const statusColor = (status: string) => {
     switch (status) {
       case "pending":
@@ -89,7 +86,6 @@ export default function UserLaporan() {
     }
   };
 
-  // Helper merapikan teks enum status database
   const formatStatusText = (status: string) => {
     return status.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase());
   };
@@ -104,7 +100,6 @@ export default function UserLaporan() {
 
   return (
     <div className="space-y-8 p-1">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-red-600 tracking-tight">
@@ -124,7 +119,6 @@ export default function UserLaporan() {
         </Link>
       </div>
 
-      {/* Statistik Atas */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard
           title="Pending"
@@ -163,9 +157,7 @@ export default function UserLaporan() {
         />
       </div>
 
-      {/* Bar Pencarian & Dropdown Filter Bersandingan */}
       <div className="flex gap-3 items-center">
-        {/* Input Search (Mengembang fleksibel mengisi sisa ruang) */}
         <div className="bg-white border border-neutral-200 rounded-2xl p-3 flex-1 shadow-sm flex items-center relative">
           <Search size={18} className="absolute left-4 text-neutral-400" />
           <input
@@ -177,9 +169,8 @@ export default function UserLaporan() {
           />
         </div>
 
-        {/* 🌟 Dropdown Filter Status (Ringkas & Proporsional di Samping Kanan) */}
         <div className="bg-white border border-neutral-200 rounded-2xl p-3 shadow-sm flex items-center gap-2 shrink-0">
-          <Filter size={16} className="text-neutral-400" />
+          <SlidersHorizontal size={16} className="text-neutral-400" />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -195,14 +186,13 @@ export default function UserLaporan() {
         </div>
       </div>
 
-      {/* List Laporan */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <div className="bg-white text-neutral-500 border border-neutral-100 rounded-2xl p-12 text-center shadow-sm">
             <p className="font-medium">Tidak ada laporan ditemukan</p>
             <p className="text-xs text-neutral-400 mt-1">
-              {statusFilter !== "all" 
-                ? `Tidak ada laporan berstatus "${formatStatusText(statusFilter)}" yang cocok dengan kata kunci Anda.` 
+              {statusFilter !== "all"
+                ? `Tidak ada laporan berstatus "${formatStatusText(statusFilter)}" yang cocok dengan kata kunci Anda.`
                 : "Coba gunakan kata kunci pencarian yang lain."}
             </p>
           </div>
@@ -251,7 +241,6 @@ export default function UserLaporan() {
   );
 }
 
-// Komponen StatCard
 function StatCard({
   title,
   value,

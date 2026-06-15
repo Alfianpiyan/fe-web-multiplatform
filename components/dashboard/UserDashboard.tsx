@@ -206,93 +206,99 @@ export default function UserDashboard() {
       )}
 
       {/* FEED LAPORAN PUBLIK */}
-      <div className="pt-4 space-y-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-            Aduan Publik Terbaru
-          </h2>
-          <p className="text-sm text-slate-500">
-            Daftar laporan masyarakat yang bersifat publik dan transparan.
-          </p>
+      {/* FEED LAPORAN PUBLIK */}
+<div className="pt-4 space-y-4">
+  <div>
+    <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+      Aduan Publik Terbaru
+    </h2>
+    <p className="text-sm text-slate-500">
+      Daftar laporan masyarakat yang bersifat publik dan transparan.
+    </p>
+  </div>
+
+  {loadingFeed ? (
+    /* 🛠️ SKELETON LOADING MENYAMPING */
+    <div className="flex flex-nowrap gap-5 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
+      {[1, 2, 3].map((i) => (
+        <div 
+          key={i} 
+          className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 animate-pulse min-w-[300px] md:min-w-[400px] max-w-[400px] flex-shrink-0"
+        >
+          <div className="h-4 bg-slate-200 rounded w-1/3"></div>
+          <div className="h-6 bg-slate-200 rounded w-3/4"></div>
+          <div className="h-16 bg-slate-200 rounded w-full"></div>
         </div>
+      ))}
+    </div>
+  ) : publicFeed.length === 0 ? (
+    <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 text-sm">
+      Belum ada aduan publik yang diterbitkan saat ini.
+    </div>
+  ) : (
+    /* 🛠️ GRID UTAMA JADI MENYAMPING (FLEX ROW) */
+    <div className="flex flex-nowrap gap-5 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 scroll-smooth snap-x">
+      {publicFeed.map((laporan: any) => (
+        <div
+          key={laporan.id}
+          className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between hover:shadow-md transition-all group min-w-[300px] md:min-w-[400px] max-w-[400px] flex-shrink-0 snap-contained"
+        >
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg">
+                {laporan.kategori?.name || "Aduan Umum"}
+              </span>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-lg capitalize ${laporan.status === 'selesai' ? 'bg-green-50 text-green-600' :
+                  laporan.status === 'tindak_lanjut' ? 'bg-amber-50 text-amber-600' :
+                    'bg-blue-50 text-blue-600'
+                }`}>
+                {laporan.status || "Pending"}
+              </span>
+            </div>
 
-        {loadingFeed ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {[1, 2].map((i) => (
-              <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 animate-pulse">
-                <div className="h-4 bg-slate-200 rounded w-1/3"></div>
-                <div className="h-6 bg-slate-200 rounded w-3/4"></div>
-                <div className="h-16 bg-slate-200 rounded w-full"></div>
+            <div>
+              <h3 className="font-bold text-slate-800 group-hover:text-red-600 transition-colors line-clamp-1">
+                {laporan.title}
+              </h3>
+              <p className="text-sm text-slate-600 line-clamp-3 mt-1 leading-relaxed">
+                {laporan.report_description}
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between text-xs text-slate-500">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 overflow-hidden">
+              <div className="flex items-center gap-1">
+                <MapPin size={14} className="text-slate-400 flex-shrink-0" />
+                <span className="truncate max-w-[100px] md:max-w-[120px]">{laporan.city || "Lokasi Rahasia"}</span>
               </div>
-            ))}
-          </div>
-        ) : publicFeed.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 text-sm">
-            Belum ada aduan publik yang diterbitkan saat ini.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {publicFeed.map((laporan: any) => (
-              <div
-                key={laporan.id}
-                className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between hover:shadow-md transition-all group"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg">
-                      {laporan.kategori?.name || "Aduan Umum"}
-                    </span>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-lg capitalize ${laporan.status === 'selesai' ? 'bg-green-50 text-green-600' :
-                        laporan.status === 'tindak_lanjut' ? 'bg-amber-50 text-amber-600' :
-                          'bg-blue-50 text-blue-600'
-                      }`}>
-                      {laporan.status || "Pending"}
-                    </span>
-                  </div>
-
-                  <div>
-                    <h3 className="font-bold text-slate-800 group-hover:text-red-600 transition-colors line-clamp-1">
-                      {laporan.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 line-clamp-3 mt-1 leading-relaxed">
-                      {laporan.report_description}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between text-xs text-slate-500">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                    <div className="flex items-center gap-1">
-                      <MapPin size={14} className="text-slate-400" />
-                      <span className="truncate max-w-[120px]">{laporan.city || "Lokasi Rahasia"}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar size={14} className="text-slate-400" />
-                      <span>
-                        {laporan.waktu_kejadian
-                          ? new Date(laporan.waktu_kejadian).toLocaleDateString("id-ID", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric"
-                          })
-                          : "-"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <a
-                    href={`/dashboard/laporan/${laporan.id}`}
-                    className="flex items-center gap-1 font-semibold text-red-600 hover:text-red-700 transition-colors"
-                  >
-                    <Eye size={14} />
-                    Lihat
-                  </a>
-                </div>
+              <div className="flex items-center gap-1">
+                <Calendar size={14} className="text-slate-400 flex-shrink-0" />
+                <span className="whitespace-nowrap">
+                  {laporan.waktu_kejadian
+                    ? new Date(laporan.waktu_kejadian).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric"
+                    })
+                    : "-"}
+                </span>
               </div>
-            ))}
+            </div>
+
+            <a
+              href={`/dashboard/laporan/${laporan.id}`}
+              className="flex items-center gap-1 font-semibold text-red-600 hover:text-red-700 transition-colors flex-shrink-0"
+            >
+              <Eye size={14} />
+              Lihat
+            </a>
           </div>
-        )}
-      </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
     </div>
   );
 }
