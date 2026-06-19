@@ -6,25 +6,22 @@ import {
   Bell,
   Clock3,
   CheckCircle2,
-  ClipboardList,
   ShieldCheck,
   Eye,
   MapPin,
   Calendar,
-  User,
 } from "lucide-react";
 
 import DashboardCard from "./DashboardCard";
 import DashboardHeader from "./DashboardHeader";
 
 import { getUserDashboard } from "@/services/dashboardService";
-// 🌟 IMPORT SERVICE: Ambil getMyLaporan dan getPublicLaporan
-import { getPublicLaporan, getMyLaporan } from "@/src/lib/laporan";
+import { getPublicLaporan, getMyLaporan } from "@/services/laporanService";
 
 export default function UserDashboard() {
   const [data, setData] = useState<any>(null);
-  const [latestMyLaporan, setLatestMyLaporan] = useState<any>(null); // State untuk 1 laporan terbaru user
-  const [publicFeed, setPublicFeed] = useState<any[]>([]); // State penyimpan feed publik
+  const [latestMyLaporan, setLatestMyLaporan] = useState<any>(null); 
+  const [publicFeed, setPublicFeed] = useState<any[]>([]); 
   const [loadingFeed, setLoadingFeed] = useState<boolean>(true);
 
   useEffect(() => {
@@ -42,14 +39,11 @@ export default function UserDashboard() {
     }
   };
 
-  // 🌟 AMBIL DATA: 1 Laporan terbaru milik user sendiri
   const fetchLatestMyLaporan = async () => {
     try {
       const response = await getMyLaporan();
       const listLaporan = response.data?.data || response.data || [];
 
-      // Karena biasanya API return data terurut dari yang terbaru (descending), 
-      // kita ambil index ke-0 (paling atas)
       if (listLaporan.length > 0) {
         setLatestMyLaporan(listLaporan[0]);
       }
@@ -58,7 +52,6 @@ export default function UserDashboard() {
     }
   };
 
-  // AMBIL DATA: Laporan Publik
   const fetchPublicFeed = async () => {
     try {
       setLoadingFeed(true);
@@ -87,17 +80,12 @@ export default function UserDashboard() {
         description="Pantau seluruh laporan yang telah Anda kirim."
       />
 
-      {/* GRID STATISTIK BARIS 1 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+      {/* 🛠️ LAYOUT BARU: Statistik Menyatu Sebaris Secara Proporsional */}
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-5">
         <DashboardCard
           title="Total Laporan"
           value={data.total_laporan}
           icon={FileText}
-        />
-        <DashboardCard
-          title="Draft"
-          value={data.draft}
-          icon={ClipboardList}
         />
         <DashboardCard
           title="Pending"
@@ -105,17 +93,13 @@ export default function UserDashboard() {
           icon={Clock3}
         />
         <DashboardCard
-          title="Notifikasi"
-          value={data.unread_notifications}
-          icon={Bell}
-        />
-      </div>
-
-      {/* GRID STATISTIK BARIS 2 */}
-      <div className="grid xl:grid-cols-3 gap-5">
-        <DashboardCard
           title="Diperiksa"
           value={data.diperiksa}
+          icon={ShieldCheck}
+        />
+        <DashboardCard
+          title="Diverifikasi"
+          value={data.diverifikasi}
           icon={ShieldCheck}
         />
         <DashboardCard
@@ -130,7 +114,20 @@ export default function UserDashboard() {
         />
       </div>
 
-      {/* 🌟 BAGIAN BARU: 1 LAPORAN TERBARU SAYA 🌟 */}
+      {/* NOTIFIKASI - Diletakkan di atas atau bawah grid jika ingin menghemat space baris */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-red-50 text-red-600 rounded-xl">
+            <Bell size={20} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-slate-500">Notifikasi Belum Dibaca</p>
+            <h3 className="text-xl font-bold text-slate-900">{data.unread_notifications}</h3>
+          </div>
+        </div>
+      </div>
+
+      {/* BAGIAN ADUAN TERAKHIR SAYA */}
       {latestMyLaporan && (
         <div className="pt-4 space-y-4">
           <div>
@@ -172,7 +169,6 @@ export default function UserDashboard() {
                   <Calendar size={14} className="text-slate-400" />
                   <span>
                     {(() => {
-                      // Ambil tanggal dari properti yang ada di dalam objek laporan
                       const rawDate = latestMyLaporan.waktu_kejadian || latestMyLaporan.createdAt || latestMyLaporan.created_at;
                       if (!rawDate) return "Tanggal tidak tercatat";
 
@@ -194,7 +190,7 @@ export default function UserDashboard() {
 
             <div className="flex items-center justify-end md:border-l md:border-slate-200 md:pl-6">
               <a
-                href={`/dashboard/laporan/me/${latestMyLaporan.id}`} // Arahkan ke detail privat milik saya sendiri
+                href={`/dashboard/laporan/me/${latestMyLaporan.id}`}
                 className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-slate-900 text-white font-semibold text-sm hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 shadow-sm"
               >
                 <Eye size={16} />
@@ -206,99 +202,96 @@ export default function UserDashboard() {
       )}
 
       {/* FEED LAPORAN PUBLIK */}
-      {/* FEED LAPORAN PUBLIK */}
-<div className="pt-4 space-y-4">
-  <div>
-    <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-      Aduan Publik Terbaru
-    </h2>
-    <p className="text-sm text-slate-500">
-      Daftar laporan masyarakat yang bersifat publik dan transparan.
-    </p>
-  </div>
-
-  {loadingFeed ? (
-    /* 🛠️ SKELETON LOADING MENYAMPING */
-    <div className="flex flex-nowrap gap-5 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
-      {[1, 2, 3].map((i) => (
-        <div 
-          key={i} 
-          className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 animate-pulse min-w-[300px] md:min-w-[400px] max-w-[400px] flex-shrink-0"
-        >
-          <div className="h-4 bg-slate-200 rounded w-1/3"></div>
-          <div className="h-6 bg-slate-200 rounded w-3/4"></div>
-          <div className="h-16 bg-slate-200 rounded w-full"></div>
+      <div className="pt-4 space-y-4">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+            Aduan Publik Terbaru
+          </h2>
+          <p className="text-sm text-slate-500">
+            Daftar laporan masyarakat yang bersifat publik dan transparan.
+          </p>
         </div>
-      ))}
-    </div>
-  ) : publicFeed.length === 0 ? (
-    <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 text-sm">
-      Belum ada aduan publik yang diterbitkan saat ini.
-    </div>
-  ) : (
-    /* 🛠️ GRID UTAMA JADI MENYAMPING (FLEX ROW) */
-    <div className="flex flex-nowrap gap-5 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 scroll-smooth snap-x">
-      {publicFeed.map((laporan: any) => (
-        <div
-          key={laporan.id}
-          className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between hover:shadow-md transition-all group min-w-[300px] md:min-w-[400px] max-w-[400px] flex-shrink-0 snap-contained"
-        >
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg">
-                {laporan.kategori?.name || "Aduan Umum"}
-              </span>
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-lg capitalize ${laporan.status === 'selesai' ? 'bg-green-50 text-green-600' :
-                  laporan.status === 'tindak_lanjut' ? 'bg-amber-50 text-amber-600' :
-                    'bg-blue-50 text-blue-600'
-                }`}>
-                {laporan.status || "Pending"}
-              </span>
-            </div>
 
-            <div>
-              <h3 className="font-bold text-slate-800 group-hover:text-red-600 transition-colors line-clamp-1">
-                {laporan.title}
-              </h3>
-              <p className="text-sm text-slate-600 line-clamp-3 mt-1 leading-relaxed">
-                {laporan.report_description}
-              </p>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between text-xs text-slate-500">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 overflow-hidden">
-              <div className="flex items-center gap-1">
-                <MapPin size={14} className="text-slate-400 flex-shrink-0" />
-                <span className="truncate max-w-[100px] md:max-w-[120px]">{laporan.city || "Lokasi Rahasia"}</span>
+        {loadingFeed ? (
+          <div className="flex flex-nowrap gap-5 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
+            {[1, 2, 3].map((i) => (
+              <div 
+                key={i} 
+                className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 animate-pulse min-w-[300px] md:min-w-[400px] max-w-[400px] flex-shrink-0"
+              >
+                <div className="h-4 bg-slate-200 rounded w-1/3"></div>
+                <div className="h-6 bg-slate-200 rounded w-3/4"></div>
+                <div className="h-16 bg-slate-200 rounded w-full"></div>
               </div>
-              <div className="flex items-center gap-1">
-                <Calendar size={14} className="text-slate-400 flex-shrink-0" />
-                <span className="whitespace-nowrap">
-                  {laporan.waktu_kejadian
-                    ? new Date(laporan.waktu_kejadian).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric"
-                    })
-                    : "-"}
-                </span>
-              </div>
-            </div>
-
-            <a
-              href={`/dashboard/laporan/${laporan.id}`}
-              className="flex items-center gap-1 font-semibold text-red-600 hover:text-red-700 transition-colors flex-shrink-0"
-            >
-              <Eye size={14} />
-              Lihat
-            </a>
+            ))}
           </div>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
+        ) : publicFeed.length === 0 ? (
+          <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500 text-sm">
+            Belum ada aduan publik yang diterbitkan saat ini.
+          </div>
+        ) : (
+          <div className="flex flex-nowrap gap-5 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200 scroll-smooth snap-x">
+            {publicFeed.map((laporan: any) => (
+              <div
+                key={laporan.id}
+                className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between hover:shadow-md transition-all group min-w-[300px] md:min-w-[400px] max-w-[400px] flex-shrink-0 snap-contained"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg">
+                      {laporan.kategori?.name || "Aduan Umum"}
+                    </span>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-lg capitalize ${laporan.status === 'selesai' ? 'bg-green-50 text-green-600' :
+                        laporan.status === 'tindak_lanjut' ? 'bg-amber-50 text-amber-600' :
+                          'bg-blue-50 text-blue-600'
+                      }`}>
+                      {laporan.status || "Pending"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-slate-800 group-hover:text-red-600 transition-colors line-clamp-1">
+                      {laporan.title}
+                    </h3>
+                    <p className="text-sm text-slate-600 line-clamp-3 mt-1 leading-relaxed">
+                      {laporan.report_description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 overflow-hidden">
+                    <div className="flex items-center gap-1">
+                      <MapPin size={14} className="text-slate-400 flex-shrink-0" />
+                      <span className="truncate max-w-[100px] md:max-w-[120px]">{laporan.city || "Lokasi Rahasia"}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar size={14} className="text-slate-400 flex-shrink-0" />
+                      <span className="whitespace-nowrap">
+                        {laporan.waktu_kejadian
+                          ? new Date(laporan.waktu_kejadian).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric"
+                          })
+                          : "-"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <a
+                    href={`/dashboard/laporan/${laporan.id}`}
+                    className="flex items-center gap-1 font-semibold text-red-600 hover:text-red-700 transition-colors flex-shrink-0"
+                  >
+                    <Eye size={14} />
+                    Lihat
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

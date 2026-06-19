@@ -14,6 +14,9 @@ import {
   FolderOpen
 } from "lucide-react";
 
+// 🌟 Import SweetAlert2
+import Swal from "sweetalert2";
+
 import { 
   getDetailLaporan, 
   getDetailLaporanAdmin,
@@ -98,121 +101,171 @@ export default function DetailLaporanPage({ params }: PageProps) {
   useEffect(() => {
     loadAllData();
   }, [id, isAdmin]);
-
-  const loadAllData = async () => {
+const loadAllData = async () => {
+  try {
+    setLoading(true);
+    setErrorStatus(null);
+    
+    let responseDetail;
+    
+    // 🟢 Menggunakan getDetailLaporan(id) secara seragam di awal sebagai jalur aman
     try {
-      setLoading(true);
-      setErrorStatus(null);
-      
-      let responseDetail;
-      
-      // Admin dan User diarahkan ke pemanggilan fungsi yang tepat
+      responseDetail = await getDetailLaporan(id);
+    } catch (err) {
+      // Jika endpoint umum gagal/403, baru lempar ke fallback sesuai role
       if (isAdmin) {
-        responseDetail = await getDetailLaporanAdmin(id); 
+        responseDetail = await getDetailLaporanAdmin(id);
       } else {
-        try {
-          responseDetail = await getMyDetailLaporan(id); 
-        } catch (err) {
-          responseDetail = await getDetailLaporan(id);
-        }
+        responseDetail = await getMyDetailLaporan(id);
       }
-
-      // Menangani struktur data dari backend: responseDetail.data.data
-      const dataLaporan = responseDetail.data?.data || responseDetail.data;
-      if (!dataLaporan) throw new Error("Data kosong");
-      setLaporan(dataLaporan);
-
-      // Set Bukti Gambar (sekarang membaca data dari before_images hasil query backend)
-      setBuktiImages(dataLaporan.before_images || dataLaporan.images || dataLaporan.attachments || []);
-
-      // Ambil Progres Lapangan (bisa juga otomatis dari dataLaporan.progress_images)
-      if (dataLaporan.progress_images) {
-        setProgressImages(dataLaporan.progress_images);
-      } else {
-        try {
-          const responseProgress = await getProgressImages(id);
-          setProgressImages(responseProgress.data?.data || responseProgress.data || []);
-        } catch (e) { console.log("Belum ada progress"); }
-      }
-
-      // Ambil Chat Penanganan Laporan
-      try {
-        if (dataLaporan?.visibility === "public") {
-          const responseKomentar = await getPublicComments(id);
-          setChatList(responseKomentar.data?.data || responseKomentar.data || []);
-        } else {
-          console.log("Mengambil obrolan privat (Internal Comment)...");
-          const responseInternal = await getInternalComments(id);
-          setChatList(responseInternal.data?.data || responseInternal.data || []);
-        }
-      } catch (chatError) {
-        console.error("Gagal memuat chat:", chatError);
-        setChatList([]);
-      }
-
-    } catch (error: any) {
-      console.error("❌ Gagal memuat data:", error);
-      setErrorStatus(error?.response?.status || "ERROR");
-    } finally {
-      setLoading(false);
     }
-  };
 
-  const handleKirimPesan = async (e: React.FormEvent) => {
+    const dataLaporan = responseDetail?.data?.data || responseDetail?.data;
+    if (!dataLaporan) throw new Error("Data kosong atau tidak ditemukan");
+    setLaporan(dataLaporan);
+
+    // Set Bukti Gambar awal
+    setBuktiImages(dataLaporan.before_images || dataLaporan.images || dataLaporan.attachments || []);
+
+    // Ambil Progres Lapangan
+    if (dataLaporan.progress_images) {
+      setProgressImages(dataLaporan.progress_images);
+    } else {
+      try {
+        const responseProgress = await getProgressImages(id);
+        const resProgressData = responseProgress.data?.data || responseProgress.data || [];
+        setProgressImages(Array.isArray(resProgressData) ? resProgressData : []);
+      } catch (e) { 
+        console.log("Belum ada progress"); 
+        setProgressImages([]);
+      }
+    }
+
+    // Ambil Komentar / Obrolan dengan aman
+    try {
+      if (dataLaporan?.visibility === "public") {
+        const responseKomentar = await getPublicComments(id);
+        const freshComments = responseKomentar.data?.data || responseKomentar.data || [];
+        setChatList(Array.isArray(freshComments) ? freshComments : []);
+      } else {
+        const responseInternal = await getInternalComments(id);
+        const freshInternal = responseInternal.data?.data || responseInternal.data || [];
+        setChatList(Array.isArray(freshInternal) ? freshInternal : []);
+      }
+    } catch (chatError) {
+      console.error("Gagal memuat chat dari API:", chatError);
+      setChatList([]);
+    }
+
+  } catch (error: any) {
+    console.error("❌ Gagal memuat data:", error);
+    setErrorStatus(error?.response?.status || "ERROR");
+  } finally {
+    setLoading(false);
+  }
+};
+const handleKirimPesan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputPesan.trim()) return;
 
+    const pesanSementera = inputPesan.trim();
+
     try {
+      // 🌟 PERBAIKAN 2: Pastikan parameter kedua dikirim langsung sebagai string mentah 
+      // karena di dalam `laporanService.ts` fungsi kamu menerima (id, message: string)
       if (laporan?.visibility === "public") {
-        await createPublicComment(id, inputPesan);
+        await createPublicComment(id, pesanSementera);
       } else {
-        await createInternalComment(id, inputPesan);
+        await createInternalComment(id, pesanSementera);
       }
       
       setInputPesan("");
       
-      const resChat = laporan?.visibility === "public" 
-        ? await getPublicComments(id) 
-        : await getInternalComments(id);
-        
-      setChatList(resChat.data?.data || resChat.data || []);
+      // Refresh list obrolan secara mandiri
+      try {
+        const resChat = laporan?.visibility === "public" 
+          ? await getPublicComments(id) 
+          : await getInternalComments(id);
+          
+        const freshChatData = resChat.data?.data || resChat.data || [];
+        setChatList(Array.isArray(freshChatData) ? freshChatData : []);
+      } catch (fetchChatError) {
+        console.error("Pesan terkirim, namun gagal me-refresh list obrolan:", fetchChatError);
+      }
+
     } catch (error: any) {
-      console.error("❌ Gagal mengirim tanggapan:", error);
+      console.error("❌ Gagal mengirim tanggapan ke server:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Gagal Kirim",
+        text: error?.response?.data?.message || "Komentar atau pesan penanganan gagal dikirim ke server.",
+        confirmButtonColor: "#dc2626",
+      });
     }
   };
-
+  // 🌟 PROSES UNGHAH PROGRESS LAPANGAN DENGAN VALIDASI SWEETALERT2
   const handleUploadProgress = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
+
+    // Validasi Ukuran File (Contoh: Batas maksimal 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      Swal.fire({
+        icon: "warning",
+        title: "Ukuran Berkas Terlalu Besar",
+        text: "Maksimal ukuran foto dokumentasi yang diizinkan adalah 2MB.",
+        confirmButtonColor: "#dc2626",
+      });
+      return;
+    }
+
     const formData = new FormData();
-    formData.append("images", file);
+    formData.append("image", file);
 
     try {
       setUploadLoading(true);
       await uploadProgressImage(id, formData);
-      alert("Foto perkembangan lapangan berhasil didokumentasikan!");
       
-      const resProgress = await getProgressImages(id);
-      setProgressImages(resProgress.data?.data || resProgress.data || []);
+      // Menggunakan SweetAlert2 Sukses menggantikan alert konvensional
+      Swal.fire({
+        icon: "success",
+        title: "Dokumentasi Disimpan",
+        text: "Foto perkembangan lapangan berhasil diunggah ke pelaporan.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      
+
+
+    const resProgress = await getProgressImages(id);
+    setProgressImages(resProgress.data?.data || resProgress.data || []);
+      // Otomatis muat ulang status terbaru dari server
+      loadAllData();
     } catch (error) {
       console.error(error);
-      alert("Gagal mengunggah foto progres.");
+      Swal.fire({
+        icon: "error",
+        title: "Gagal Mengunggah",
+        text: "Terjadi kesalahan sistem saat mencoba mengunggah dokumentasi.",
+        confirmButtonColor: "#dc2626",
+      });
     } finally {
       setUploadLoading(false);
     }
   };
   
 
-  const statusColor = (status?: string) => {
-    switch (status?.toLowerCase()) {
-      case "pending": return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      case "diperiksa": return "bg-blue-100 text-blue-700 border-blue-200";
-      case "tindak_lanjut": return "bg-orange-100 text-orange-700 border-orange-200";
-      case "selesai": return "bg-green-100 text-green-700 border-green-200";
-      case "ditolak": return "bg-red-100 text-red-700 border-red-200";
-      default: return "bg-slate-100 text-slate-700 border-slate-200";
-    }
-  };
+  const statusColor = (status: string) => {
+  switch (status) {
+    case "pending": return "bg-yellow-100 text-yellow-700";
+    case "diperiksa": 
+    case "diverifikasi": return "bg-blue-100 text-blue-700"; // Tambahkan ini
+    case "tindak_lanjut": return "bg-orange-100 text-orange-700";
+    case "selesai": return "bg-green-100 text-green-700";
+    case "ditolak": return "bg-red-100 text-red-700";
+    default: return "bg-slate-100 text-slate-700";
+  }
+};
 
   if (loading) {
     return (
@@ -331,11 +384,12 @@ export default function DetailLaporanPage({ params }: PageProps) {
                         <span className={`text-[9px] px-1.5 py-0.5 font-extrabold rounded uppercase ${
                           chat.role === "admin" || chat.role === "superadmin" ? "bg-red-100 text-red-700" : "bg-neutral-200 text-neutral-600"
                         }`}>
-                          {chat.role}
+                          {chat.role || "user"}
                         </span>
                       </div>
                       <p className="text-neutral-600 text-xs sm:text-sm leading-relaxed">
-                        {chat.komentar || chat.message}
+                        {/* 🌟 Gunakan urutan properti message lalu komentar sesuai controller */}
+                        {chat.message || chat.komentar}
                       </p>
                     </div>
                   ))
@@ -344,7 +398,7 @@ export default function DetailLaporanPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* KOLOM KANAN (Foto Lampiran Bukti dari Cloudinary) */}
+          {/* KOLOM KANAN */}
           <div className="space-y-6">
             <div className="bg-white border border-neutral-200/60 rounded-2xl p-5 shadow-sm space-y-4">
               <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
@@ -371,33 +425,44 @@ export default function DetailLaporanPage({ params }: PageProps) {
               )}
             </div>
 
-            <div className="bg-white border border-neutral-200/60 rounded-2xl p-5 shadow-sm space-y-4">
-              <div className="flex justify-between items-center border-b pb-2">
-                <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <CheckCircle size={14} className="text-emerald-500" />
-                  <span>🛠️ Hasil Perkembangan Lapangan</span>
-                </h3>
-                {isAdmin && (
-                  <label className="bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer shadow-sm transition-all flex items-center gap-1">
-                    <ImageIcon size={12} />
-                    <span>{uploadLoading ? "..." : "+ Foto"}</span>
-                    <input type="file" accept="image/*" onChange={handleUploadProgress} disabled={uploadLoading} className="hidden" />
-                  </label>
-                )}
-              </div>
+            {/* 🌟 Hasil Perkembangan Lapangan (Hanya muncul jika status Tindak Lanjut atau Selesai) */}
+{/* 🌟 Hasil Perkembangan Lapangan (Hanya muncul jika status Tindak Lanjut atau Selesai) */}
+{["tindak_lanjut", "selesai"].includes(laporan?.status?.toLowerCase() || "") ? (
+  <div className="bg-white border border-neutral-200/60 rounded-2xl p-5 shadow-sm space-y-4">
+    <div className="flex justify-between items-center border-b pb-2">
+      <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+        <CheckCircle size={14} className="text-emerald-500" />
+        <span>🛠️ Hasil Perkembangan Lapangan</span>
+      </h3>
+      {isAdmin && (
+        <label className="bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer shadow-sm transition-all flex items-center gap-1">
+          <ImageIcon size={12} />
+          <span>{uploadLoading ? "..." : "+ Foto"}</span>
+          <input type="file" accept="image/*" onChange={handleUploadProgress} disabled={uploadLoading} className="hidden" />
+        </label>
+      )}
+    </div>
 
-              {progressImages.length === 0 ? (
-                <p className="text-xs text-neutral-400 italic py-2">Belum ada bukti perkembangan lapangan.</p>
-              ) : (
-                <div className="grid grid-cols-1 gap-2.5">
-                  {progressImages.map((img, index) => (
-                    <div key={img.id || index} className="relative rounded-xl overflow-hidden border border-neutral-100 aspect-video bg-neutral-50">
-                      <img src={img.image_url} alt="Progres Petugas" className="w-full h-full object-cover" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+    {progressImages.length === 0 ? (
+      <p className="text-xs text-neutral-400 italic py-2">Belum ada bukti perkembangan lapangan.</p>
+    ) : (
+      <div className="grid grid-cols-1 gap-2.5">
+        {progressImages.map((img, index) => (
+          <div key={img.id || index} className="relative rounded-xl overflow-hidden border border-neutral-100 aspect-video bg-neutral-50">
+            <img src={img.image_url} alt="Progres Petugas" className="w-full h-full object-cover" />
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+) : (
+  /* Jika status belum masuk tindak lanjut, infokan ke admin saja. */
+  isAdmin && (
+    <div className="bg-yellow-50/50 border border-yellow-200/60 rounded-2xl p-4 text-xs text-yellow-700 shadow-sm leading-relaxed">
+      💡 <strong>Info Admin:</strong> Fitur unggah dokumentasi progress lapangan dikunci otomatis karena status aduan saat ini masih berupa <strong>{(laporan?.status || "").replace("_", " ")}</strong>. Silakan ubah status ke <em>Tindak Lanjut</em> terlebih dahulu untuk membuka akses.
+    </div>
+  )
+)}
           </div>
 
         </div>

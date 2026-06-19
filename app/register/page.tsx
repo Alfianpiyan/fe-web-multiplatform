@@ -16,12 +16,42 @@ export default function RegisterPage() {
   const [telepon, setTelepon] = useState("");
   const [alamat, setAlamat] = useState("");
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!userName.trim()) newErrors.userName = "Nama lengkap tidak boleh kosong.";
+    if (!email.trim()) {
+      newErrors.email = "Email tidak boleh kosong.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Format email tidak valid.";
+    }
+    if (!password) {
+      newErrors.password = "Password tidak boleh kosong.";
+    } else if (password.length < 8) {
+      newErrors.password = "Password minimal 8 karakter.";
+    }
+    if (!telepon.trim()) newErrors.telepon = "Nomor telepon tidak boleh kosong.";
+    if (!alamat.trim()) newErrors.alamat = "Alamat tidak boleh kosong.";
+
+    return newErrors;
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
+
     try {
       setLoading(true);
       setError("");
@@ -41,10 +71,16 @@ export default function RegisterPage() {
     }
   };
 
+  const inputClass = (field: string) =>
+    `w-full border-2 rounded-xl px-4 py-3 text-neutral-900 placeholder:text-neutral-400 outline-none transition text-sm font-medium ${
+      errors[field]
+        ? "border-red-400 focus:border-red-500"
+        : "border-neutral-200 focus:border-[#ff295e]"
+    }`;
+
   return (
     <main className="min-h-screen bg-white flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
-
         <div className="bg-white border border-neutral-200 rounded-3xl shadow-2xl p-8 space-y-4">
 
           <Link
@@ -72,7 +108,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form onSubmit={handleRegister} className="space-y-3">
+          <form onSubmit={handleRegister} className="space-y-3" noValidate>
 
             <div className="space-y-1">
               <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider pl-1">
@@ -82,10 +118,15 @@ export default function RegisterPage() {
                 type="text"
                 placeholder="Masukkan nama lengkap"
                 value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                required
-                className="w-full border-2 border-neutral-200 rounded-xl px-4 py-3 text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-[#ff295e] transition text-sm font-medium"
+                onChange={(e) => {
+                  setUserName(e.target.value);
+                  if (errors.userName) setErrors((prev) => ({ ...prev, userName: "" }));
+                }}
+                className={inputClass("userName")}
               />
+              {errors.userName && (
+                <p className="text-red-500 text-xs pl-1">{errors.userName}</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -96,10 +137,15 @@ export default function RegisterPage() {
                 type="email"
                 placeholder="email@contoh.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full border-2 border-neutral-200 rounded-xl px-4 py-3 text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-[#ff295e] transition text-sm font-medium"
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+                }}
+                className={inputClass("email")}
               />
+              {errors.email && (
+                <p className="text-red-500 text-xs pl-1">{errors.email}</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -110,10 +156,15 @@ export default function RegisterPage() {
                 type="password"
                 placeholder="Minimal 8 karakter"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full border-2 border-neutral-200 rounded-xl px-4 py-3 text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-[#ff295e] transition text-sm font-medium"
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
+                }}
+                className={inputClass("password")}
               />
+              {errors.password && (
+                <p className="text-red-500 text-xs pl-1">{errors.password}</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -124,9 +175,15 @@ export default function RegisterPage() {
                 type="text"
                 placeholder="08xxxxxxxxxx"
                 value={telepon}
-                onChange={(e) => setTelepon(e.target.value)}
-                className="w-full border-2 border-neutral-200 rounded-xl px-4 py-3 text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-[#ff295e] transition text-sm font-medium"
+                onChange={(e) => {
+                  setTelepon(e.target.value);
+                  if (errors.telepon) setErrors((prev) => ({ ...prev, telepon: "" }));
+                }}
+                className={inputClass("telepon")}
               />
+              {errors.telepon && (
+                <p className="text-red-500 text-xs pl-1">{errors.telepon}</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -136,10 +193,16 @@ export default function RegisterPage() {
               <textarea
                 placeholder="Tulis alamat lengkap..."
                 value={alamat}
-                onChange={(e) => setAlamat(e.target.value)}
+                onChange={(e) => {
+                  setAlamat(e.target.value);
+                  if (errors.alamat) setErrors((prev) => ({ ...prev, alamat: "" }));
+                }}
                 rows={3}
-                className="w-full border-2 border-neutral-200 rounded-xl px-4 py-3 text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-[#ff295e] transition text-sm font-medium resize-none"
+                className={inputClass("alamat") + " resize-none"}
               />
+              {errors.alamat && (
+                <p className="text-red-500 text-xs pl-1">{errors.alamat}</p>
+              )}
             </div>
 
             <button

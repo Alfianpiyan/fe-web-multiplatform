@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Clock3,
@@ -15,14 +16,10 @@ import {
   Trash2,
   X,
   Pencil,
-  Timer,
-  ScanSearch,
-  Hammer,
-  BadgeCheck,
-  Ban,
-  Globe,
-  Lock,
 } from "lucide-react";
+
+// Import SweetAlert2
+import Swal from "sweetalert2";
 
 import { getPublicLaporan } from "@/services/laporanService";
 import { updateStatusLaporan } from "@/services/adminService";
@@ -34,6 +31,7 @@ interface Laporan {
   status: string;
   created_at: string;
   visibility?: "public" | "private";
+  tindak_lanjut_image?: string | null; 
 }
 
 interface Kategori {
@@ -43,6 +41,7 @@ interface Kategori {
 }
 
 export default function AdminLaporan() {
+  const router = useRouter();
   const [laporan, setLaporan] = useState<Laporan[]>([]);
   const [kategoriList, setKategoriList] = useState<Kategori[]>([]);
   const [search, setSearch] = useState("");
@@ -72,6 +71,12 @@ export default function AdminLaporan() {
       setKategoriList(Array.isArray(dataKategori) ? dataKategori : []);
     } catch (error) {
       console.error("Gagal fetch dashboard admin:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Koneksi Gagal",
+        text: "Gagal memuat data dari server.",
+        confirmButtonColor: "#dc2626",
+      });
     } finally {
       setLoading(false);
     }
@@ -81,25 +86,54 @@ export default function AdminLaporan() {
     const newVisibility = e.target.value;
     try {
       await updateStatusLaporan(id, currentStatus, newVisibility);
-      alert("Visibilitas laporan berhasil diperbarui!");
+      Swal.fire({
+        icon: "success",
+        title: "Berhasil!",
+        text: "Visibilitas laporan berhasil diperbarui.",
+        timer: 1500,
+        showConfirmButton: false,
+      });
       setLaporan((prevLaporan) =>
         prevLaporan.map((item) =>
           item.id === id ? { ...item, visibility: newVisibility as "public" | "private" } : item
         )
       );
     } catch (error: any) {
-      alert("Gagal memperbarui visibilitas");
+      Swal.fire({
+        icon: "error",
+        title: "Gagal",
+        text: "Gagal memperbarui opsi visibilitas.",
+        confirmButtonColor: "#dc2626",
+      });
     }
   };
 
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>, id: number) => {
     const statusBaru = e.target.value;
     const laporanSaatIni = laporan.find((item) => item.id === id);
+
+    if (statusBaru === "selesai" && laporanSaatIni?.tindak_lanjut_image === null) {
+      Swal.fire({
+        icon: "warning",
+        title: "Aksi Ditolak!",
+        text: "Laporan tidak bisa diselesaikan sebelum Anda mengunggah bukti foto tindak lanjut di halaman detail laporan.",
+        confirmButtonColor: "#df2323",
+      });
+      e.target.value = laporanSaatIni?.status || "pending";
+      return;
+    }
+
     const visibilityDefault = statusBaru === "selesai" ? (laporanSaatIni?.visibility || "public") : undefined;
 
     try {
       await updateStatusLaporan(id, statusBaru, visibilityDefault);
-      alert("Status laporan berhasil diperbarui!");
+      Swal.fire({
+        icon: "success",
+        title: "Status Diperbarui",
+        text: `Status laporan berhasil diubah menjadi ${statusBaru}.`,
+        timer: 1500,
+        showConfirmButton: false,
+      });
       setLaporan((prevLaporan) =>
         prevLaporan.map((item) =>
           item.id === id
@@ -113,14 +147,22 @@ export default function AdminLaporan() {
       );
     } catch (error: any) {
       const pesanError = error.response?.data?.message || "Gagal memperbarui status";
-      alert(`Waduh: ${pesanError}`);
+      Swal.fire({
+        icon: "error",
+        title: "Waduh...",
+        text: pesanError,
+        confirmButtonColor: "#dc2626",
+      });
       e.target.value = laporanSaatIni?.status || "pending";
     }
   };
 
   const handleSubmitKategori = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!namaKategoriBaru.trim()) return;
+    if (!namaKategoriBaru.trim()) {
+      Swal.fire({ icon: "error", title: "Validasi Gagal", text: "Nama kategori tidak boleh kosong!" });
+      return;
+    }
 
     try {
       if (isEditMode && selectedKategoriId) {
@@ -128,20 +170,20 @@ export default function AdminLaporan() {
           kategori: namaKategoriBaru,
           description: deskripsiKategoriBaru,
         });
-        alert("Kategori berhasil diperbarui!");
+        Swal.fire({ icon: "success", title: "Berhasil", text: "Kategori diperbarui!", timer: 1500, showConfirmButton: false });
       } else {
         await createKategori({
           kategori: namaKategoriBaru,
           description: deskripsiKategoriBaru,
         });
-        alert("Kategori baru berhasil ditambahkan!");
+        Swal.fire({ icon: "success", title: "Berhasil", text: "Kategori baru ditambahkan!", timer: 1500, showConfirmButton: false });
       }
 
       handleCloseModal();
       fetchAdminData();
     } catch (error: any) {
       const pesanError = error.response?.data?.message || "Gagal memproses kategori";
-      alert(`Waduh: ${pesanError}`);
+      Swal.fire({ icon: "error", title: "Gagal", text: pesanError });
     }
   };
 
@@ -162,16 +204,38 @@ export default function AdminLaporan() {
   };
 
   const handleDeleteKategori = async (id: number) => {
-    if (!confirm("Apakah kamu yakin ingin menghapus kategori ini?")) return;
-    try {
-      await deleteKategori(id);
-      alert("Kategori berhasil dihapus!");
-      fetchAdminData();
-    } catch (error: any) {
-      alert("Gagal menghapus kategori");
-    }
+    Swal.fire({
+      title: "Apakah Anda yakin?",
+      text: "Kategori yang dihapus tidak bisa dikembalikan lagi!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#e5e5e5",
+      confirmButtonText: "Ya, Hapus!",
+      cancelButtonText: "Batal",
+      customClass: {
+        cancelButton: "text-neutral-700 font-semibold"
+      }
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await deleteKategori(id);
+          Swal.fire({
+            icon: "success",
+            title: "Dihapus!",
+            text: "Kategori berhasil dihapus.",
+            timer: 1500,
+            showConfirmButton: false
+          });
+          fetchAdminData();
+        } catch (error) {
+          Swal.fire({ icon: "error", title: "Gagal", text: "Gagal menghapus kategori" });
+        }
+      }
+    });
   };
 
+  // Hitung data stats secara presisi
   const pending = laporan.filter((item) => item.status === "pending").length;
   const diperiksa = laporan.filter((item) => item.status === "diperiksa" || item.status === "diverifikasi").length;
   const tindakLanjut = laporan.filter((item) => item.status === "tindak_lanjut").length;
@@ -225,7 +289,7 @@ export default function AdminLaporan() {
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <StatCard title="Pending" value={pending} icon={<Clock3 size={22} />} iconColor="text-yellow-600" bgColor="bg-yellow-50" />
-        <StatCard title="Diperiksa" value={diperiksa} icon={<ClipboardCheck size={22} />} iconColor="text-blue-600" bgColor="bg-blue-50" />
+        <StatCard title="Diperiksa / Verifikasi" value={diperiksa} icon={<ClipboardCheck size={22} />} iconColor="text-blue-600" bgColor="bg-blue-50" />
         <StatCard title="Tindak Lanjut" value={tindakLanjut} icon={<Wrench size={22} />} iconColor="text-orange-600" bgColor="bg-orange-50" />
         <StatCard title="Selesai" value={selesai} icon={<CheckCircle2 size={22} />} iconColor="text-green-600" bgColor="bg-green-50" />
         <StatCard title="Ditolak" value={ditolak} icon={<XCircle size={22} />} iconColor="text-red-600" bgColor="bg-red-50" />
@@ -252,7 +316,7 @@ export default function AdminLaporan() {
           >
             <option value="all">Semua Status</option>
             <option value="pending">Pending</option>
-            <option value="diperiksa">Diperiksa</option>
+            <option value="diperiksa">Diperiksa / Diverifikasi</option>
             <option value="tindak_lanjut">Tindak Lanjut</option>
             <option value="selesai">Selesai</option>
             <option value="ditolak">Ditolak</option>
@@ -296,6 +360,7 @@ export default function AdminLaporan() {
                   >
                     <option value="pending">Pending</option>
                     <option value="diperiksa">Diperiksa</option>
+                    <option value="diverifikasi">Diverifikasi</option>
                     <option value="tindak_lanjut">Tindak Lanjut</option>
                     <option value="selesai">Selesai</option>
                     <option value="ditolak">Ditolak</option>
@@ -305,7 +370,7 @@ export default function AdminLaporan() {
                     <select
                       value={item.visibility || "public"}
                       onChange={(e) => handleVisibilityChange(e, item.id, item.status)}
-                      className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-neutral-100 text-neutral-800 border border-neutral-200 cursor-pointer focus:outline-none transition-all shadow-sm animate-in fade-in slide-in-from-left-2 duration-200"
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-neutral-100 text-neutral-800 border border-neutral-200 cursor-pointer focus:outline-none transition-all shadow-sm"
                     >
                       <option value="public">Publik (Semua Orang)</option>
                       <option value="private">Privat (Internal)</option>
@@ -320,10 +385,11 @@ export default function AdminLaporan() {
         )}
       </div>
 
+      {/* MODAL KATEGORI */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm" onClick={handleCloseModal} />
-          <div className="bg-white rounded-2xl shadow-xl border w-full max-w-lg p-6 relative z-10 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-xl border w-full max-w-lg p-6 relative z-10">
             <div className="flex justify-between items-center border-b pb-3 mb-4">
               <h3 className="text-lg font-bold">{isEditMode ? "Edit Kategori" : "Kelola Kategori"}</h3>
               <button onClick={handleCloseModal}><X size={18} /></button>

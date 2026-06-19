@@ -15,7 +15,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 
-import { getMyLaporan } from "@/src/lib/laporan";
+import { getMyLaporan } from "@/services/laporanService";
 
 interface Laporan {
   id: number;

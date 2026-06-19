@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import {
   createLaporan,
-  getDraftLaporan,
+  getMyDraftLaporan,
   submitLaporan,
   updateDraftLaporan,
   uploadLaporanImages,
-} from "@/src/lib/laporan";
+} from "@/services/laporanService";
+import Swal from "sweetalert2";
 import { getAllKategori } from "@/services/adminService";
 
 import { useRouter } from "next/navigation";
@@ -60,13 +61,13 @@ export default function CreateLaporanForm() {
     try {
       const [resKategori, resDraft] = await Promise.all([
         getAllKategori().catch(() => ({ data: { data: [] } })),
-        getDraftLaporan()
+        getMyDraftLaporan()
       ]);
 
       setKategoriList(Array.isArray(resKategori.data?.data) ? resKategori.data.data : []);
 
       // Filter draf yang benar-benar berstatus 'draft' agar laporan yang sudah 'pending' tidak ikut muat ulang
-      const activeDrafts = Array.isArray(resDraft.data) 
+      const activeDrafts = Array.isArray(resDraft.data)
         ? resDraft.data.filter((d: any) => d.status === "draft")
         : [];
 
@@ -74,7 +75,7 @@ export default function CreateLaporanForm() {
 
       if (draft) {
         setDraftId(draft.id);
-        
+
         let formattedDate = "";
         if (draft.waktu_kejadian) {
           const dateObj = new Date(draft.waktu_kejadian);
@@ -133,13 +134,32 @@ export default function CreateLaporanForm() {
 
   // 🔥 FIX MASALAH 2: Akumulasi penambahan berkas gambar tanpa menghapus pilihan sebelumnya
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
+    if (!e.target.files || e.target.files.length === 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Tidak ada file dipilih",
+        text: "Silakan pilih minimal 1 foto bukti kejadian.",
+        confirmButtonColor: "#dc2626",
+      });
+      return;
+    }
 
     const files = Array.from(e.target.files);
-    
+
+
     // Hitung total kombinasi gambar yang sudah ada + gambar baru yang dipilih
     if (images.length + files.length > 5) {
       alert("Maksimal berkas foto bukti yang diizinkan adalah 5 gambar.");
+      return;
+    }
+
+    if (images.length + files.length > 5) {
+      Swal.fire({
+        icon: "warning",
+        title: "Batas gambar terlampaui",
+        text: "Maksimal berkas foto bukti yang diizinkan adalah 5 gambar.",
+        confirmButtonColor: "#dc2626",
+      });
       return;
     }
 
@@ -155,44 +175,72 @@ export default function CreateLaporanForm() {
   const handleSubmit = async () => {
     if (!draftId || isSubmitting) return;
 
+    if (!form.kategori_id || form.kategori_id === 0) {
+      Swal.fire({ icon: "warning", title: "Kategori belum dipilih", text: "Silakan pilih Kategori Aduan terlebih dahulu!", confirmButtonColor: "#dc2626" });
+      return;
+    }
     if (!form.title.trim()) {
-      alert("Silakan isi Judul Laporan terlebih dahulu!");
+      Swal.fire({ icon: "warning", title: "Judul kosong", text: "Silakan isi Judul Laporan terlebih dahulu!", confirmButtonColor: "#dc2626" });
       return;
     }
     if (!form.report_description.trim()) {
-      alert("Silakan isi Deskripsi Kronologi Kejadian terlebih dahulu!");
+      Swal.fire({ icon: "warning", title: "Deskripsi kosong", text: "Silakan isi Deskripsi Kronologi Kejadian terlebih dahulu!", confirmButtonColor: "#dc2626" });
       return;
     }
     if (!form.city) {
-      alert("Silakan pilih kota lokasi kejadian terlebih dahulu!");
+      Swal.fire({ icon: "warning", title: "Kota belum dipilih", text: "Silakan pilih Kota Kejadian terlebih dahulu!", confirmButtonColor: "#dc2626" });
+      return;
+    }
+    if (!form.waktu_kejadian) {
+      Swal.fire({ icon: "warning", title: "Waktu kejadian kosong", text: "Silakan isi Waktu Kejadian terlebih dahulu!", confirmButtonColor: "#dc2626" });
       return;
     }
     if (!form.location_description.trim()) {
-      alert("Silakan isi Lokasi Detail / Patokan Alamat terlebih dahulu!");
+      Swal.fire({ icon: "warning", title: "Lokasi detail kosong", text: "Silakan isi Lokasi Detail / Patokan Alamat terlebih dahulu!", confirmButtonColor: "#dc2626" });
       return;
     }
+    if (!form.latitude || !form.longitude) {
+      Swal.fire({ icon: "warning", title: "Titik peta belum ditentukan", text: "Silakan klik titik lokasi kejadian pada peta terlebih dahulu!", confirmButtonColor: "#dc2626" });
+      return;
+    }
+    if (images.length === 0 && previewImages.length === 0) {
+      Swal.fire({ icon: "warning", title: "Foto bukti kosong", text: "Silakan unggah minimal 1 foto bukti kejadian terlebih dahulu!", confirmButtonColor: "#dc2626" });
+      return;
+    }
+
+    // Konfirmasi sebelum kirim
+    const konfirmasi = await Swal.fire({
+      icon: "question",
+      title: "Kirim Laporan?",
+      text: "Pastikan seluruh data yang diisi sudah benar sebelum dikirim.",
+      showCancelButton: true,
+      confirmButtonText: "Ya, Kirim Sekarang",
+      cancelButtonText: "Batalkan",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+    });
+
+    if (!konfirmasi.isConfirmed) return;
 
     try {
       setIsSubmitting(true);
 
-      // 🔥 FIX MASALAH 1: Hanya kirim gambar jika user baru saja memasukkan file mentah di session ini
       if (images.length > 0) {
         const formData = new FormData();
-        images.forEach((image) => {
-          formData.append("images", image); 
-        });
-
-        console.log("Sedang memproses upload seluruh gambar bukti...");
+        images.forEach((image) => formData.append("images", image));
         await uploadLaporanImages(draftId, formData);
-        console.log("Upload gambar sukses!");
       }
 
-      console.log("Sedang mengirimkan berkas laporan final beserta payload...");
-      await submitLaporan(draftId, form); 
+      await submitLaporan(draftId, form);
 
-      alert("Laporan aduan masyarakat berhasil dikirim beserta seluruh gambar!");
-      
-      // Bersihkan state local sebelum berpindah halaman
+      await Swal.fire({
+        icon: "success",
+        title: "Laporan Berhasil Dikirim!",
+        text: "Laporan aduan Anda telah berhasil dikirim beserta seluruh gambar bukti.",
+        confirmButtonColor: "#dc2626",
+        confirmButtonText: "Oke, Kembali ke Dashboard",
+      });
+
       setForm({
         kategori_id: 0,
         title: "",
@@ -205,16 +253,16 @@ export default function CreateLaporanForm() {
       });
       setImages([]);
       setPreviewImages([]);
-      
-      // Mengarahkan user kembali ke panel dashboard utama
+
       router.push("/dashboard/laporan");
-      window.location.href = "/dashboard/laporan"; 
+      window.location.href = "/dashboard/laporan";
     } catch (err: any) {
-      console.error("Gagal mengirim berkas aduan:", err);
-      alert(
-        err?.response?.data?.message || 
-        "Gagal memproses laporan. Pastikan seluruh kolom wajib telah terisi."
-      );
+      Swal.fire({
+        icon: "error",
+        title: "Gagal Mengirim Laporan",
+        text: err?.response?.data?.message || "Gagal memproses laporan. Pastikan seluruh kolom wajib telah terisi.",
+        confirmButtonColor: "#dc2626",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -285,7 +333,7 @@ export default function CreateLaporanForm() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-neutral-700 mb-1">Kota / Kabupaten Kejadian</label>
+                  <label className="block text-sm font-semibold text-neutral-700 mb-1">Kota Kejadian</label>
                   <select
                     value={form.city}
                     onChange={(e) => saveField("city", e.target.value)}
@@ -395,7 +443,7 @@ export default function CreateLaporanForm() {
               </h2>
               <p className="text-xs text-neutral-400 mt-0.5">Cari alamat atau klik titik di peta secara presisi.</p>
             </div>
-            
+
             <div className="rounded-xl overflow-hidden border border-neutral-100 shadow-inner">
               <LocationPicker
                 latitude={form.latitude}
@@ -420,6 +468,27 @@ export default function CreateLaporanForm() {
                 }}
               />
             </div>
+            {form.latitude && form.longitude && (
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+                <p className="text-xs text-green-700 font-medium">
+                  📍 {parseFloat(form.latitude).toFixed(5)}, {parseFloat(form.longitude).toFixed(5)}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cleared = { ...form, latitude: "", longitude: "" };
+                    setForm(cleared);
+                    if (!draftId) return;
+                    updateDraftLaporan(draftId, cleared).catch((err) =>
+                      console.log("Gagal menghapus koordinat:", err)
+                    );
+                  }}
+                  className="text-xs text-red-500 hover:text-red-700 font-semibold transition-colors ml-3 shrink-0"
+                >
+                  Hapus Lokasi
+                </button>
+              </div>
+            )}
 
             <div className="bg-neutral-50 rounded-xl p-3.5 text-xs text-neutral-500 space-y-1 border border-neutral-100">
               <p className="font-bold text-neutral-700">💡 Sistem Pengarsipan:</p>
@@ -431,11 +500,10 @@ export default function CreateLaporanForm() {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className={`w-full py-3.5 px-6 rounded-xl font-semibold text-white tracking-wide transition-all shadow-sm ${
-                isSubmitting 
-                  ? "bg-neutral-400 cursor-not-allowed text-neutral-200" 
+              className={`w-full py-3.5 px-6 rounded-xl font-semibold text-white tracking-wide transition-all shadow-sm ${isSubmitting
+                  ? "bg-neutral-400 cursor-not-allowed text-neutral-200"
                   : "bg-red-600 hover:bg-red-700 active:scale-[0.99]"
-              }`}
+                }`}
             >
               {isSubmitting ? "Sedang Mengirim Laporan..." : "Kirim Laporan Sekarang"}
             </button>
