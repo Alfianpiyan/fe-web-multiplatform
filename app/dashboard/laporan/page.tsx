@@ -4,7 +4,7 @@ import { useAuth } from "@/src/context/AuthContext";
 
 import UserLaporan from "@/components/laporan/UserLaporanPage";
 import AdminLaporan from "@/components/laporan/AdminLaporanPage";
-// import SuperAdminLaporan from "@/components/laporan/SuperAdminLaporan";
+import SuperAdminLaporan from "@/components/laporan/SuperAdminLaporanPage";
 
 export default function LaporanPage() {
   const { user } = useAuth();

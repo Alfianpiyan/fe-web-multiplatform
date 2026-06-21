@@ -77,6 +77,7 @@ export default function DetailLaporanPage({ params }: PageProps) {
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -84,8 +85,11 @@ export default function DetailLaporanPage({ params }: PageProps) {
       if (savedUser) {
         try {
           const parsedUser = JSON.parse(savedUser);
-          if (parsedUser.role === "admin" || parsedUser.role === "superadmin") {
+          if (parsedUser.role === "admin") {
             setIsAdmin(true);
+          } else if (parsedUser.role === "superadmin") {
+            setIsAdmin(true);      // tetap true biar bisa pakai endpoint detail admin sebagai fallback
+            setIsSuperAdmin(true); // tapi UI dikunci read-only
           }
         } catch (e) {
           console.error("Gagal membaca session user", e);
@@ -101,70 +105,72 @@ export default function DetailLaporanPage({ params }: PageProps) {
   useEffect(() => {
     loadAllData();
   }, [id, isAdmin]);
-const loadAllData = async () => {
-  try {
-    setLoading(true);
-    setErrorStatus(null);
-    
-    let responseDetail;
-    
-    // 🟢 Menggunakan getDetailLaporan(id) secara seragam di awal sebagai jalur aman
+
+  const loadAllData = async () => {
     try {
-      responseDetail = await getDetailLaporan(id);
-    } catch (err) {
-      // Jika endpoint umum gagal/403, baru lempar ke fallback sesuai role
-      if (isAdmin) {
-        responseDetail = await getDetailLaporanAdmin(id);
-      } else {
-        responseDetail = await getMyDetailLaporan(id);
-      }
-    }
-
-    const dataLaporan = responseDetail?.data?.data || responseDetail?.data;
-    if (!dataLaporan) throw new Error("Data kosong atau tidak ditemukan");
-    setLaporan(dataLaporan);
-
-    // Set Bukti Gambar awal
-    setBuktiImages(dataLaporan.before_images || dataLaporan.images || dataLaporan.attachments || []);
-
-    // Ambil Progres Lapangan
-    if (dataLaporan.progress_images) {
-      setProgressImages(dataLaporan.progress_images);
-    } else {
+      setLoading(true);
+      setErrorStatus(null);
+      
+      let responseDetail;
+      
+      // 🟢 Menggunakan getDetailLaporan(id) secara seragam di awal sebagai jalur aman
       try {
-        const responseProgress = await getProgressImages(id);
-        const resProgressData = responseProgress.data?.data || responseProgress.data || [];
-        setProgressImages(Array.isArray(resProgressData) ? resProgressData : []);
-      } catch (e) { 
-        console.log("Belum ada progress"); 
-        setProgressImages([]);
+        responseDetail = await getDetailLaporan(id);
+      } catch (err) {
+        // Jika endpoint umum gagal/403, baru lempar ke fallback sesuai role
+        if (isAdmin) {
+          responseDetail = await getDetailLaporanAdmin(id);
+        } else {
+          responseDetail = await getMyDetailLaporan(id);
+        }
       }
-    }
 
-    // Ambil Komentar / Obrolan dengan aman
-    try {
-      if (dataLaporan?.visibility === "public") {
-        const responseKomentar = await getPublicComments(id);
-        const freshComments = responseKomentar.data?.data || responseKomentar.data || [];
-        setChatList(Array.isArray(freshComments) ? freshComments : []);
+      const dataLaporan = responseDetail?.data?.data || responseDetail?.data;
+      if (!dataLaporan) throw new Error("Data kosong atau tidak ditemukan");
+      setLaporan(dataLaporan);
+
+      // Set Bukti Gambar awal
+      setBuktiImages(dataLaporan.before_images || dataLaporan.images || dataLaporan.attachments || []);
+
+      // Ambil Progres Lapangan
+      if (dataLaporan.progress_images) {
+        setProgressImages(dataLaporan.progress_images);
       } else {
-        const responseInternal = await getInternalComments(id);
-        const freshInternal = responseInternal.data?.data || responseInternal.data || [];
-        setChatList(Array.isArray(freshInternal) ? freshInternal : []);
+        try {
+          const responseProgress = await getProgressImages(id);
+          const resProgressData = responseProgress.data?.data || responseProgress.data || [];
+          setProgressImages(Array.isArray(resProgressData) ? resProgressData : []);
+        } catch (e) { 
+          console.log("Belum ada progress"); 
+          setProgressImages([]);
+        }
       }
-    } catch (chatError) {
-      console.error("Gagal memuat chat dari API:", chatError);
-      setChatList([]);
-    }
 
-  } catch (error: any) {
-    console.error("❌ Gagal memuat data:", error);
-    setErrorStatus(error?.response?.status || "ERROR");
-  } finally {
-    setLoading(false);
-  }
-};
-const handleKirimPesan = async (e: React.FormEvent) => {
+      // Ambil Komentar / Obrolan dengan aman
+      try {
+        if (dataLaporan?.visibility === "public") {
+          const responseKomentar = await getPublicComments(id);
+          const freshComments = responseKomentar.data?.data || responseKomentar.data || [];
+          setChatList(Array.isArray(freshComments) ? freshComments : []);
+        } else {
+          const responseInternal = await getInternalComments(id);
+          const freshInternal = responseInternal.data?.data || responseInternal.data || [];
+          setChatList(Array.isArray(freshInternal) ? freshInternal : []);
+        }
+      } catch (chatError) {
+        console.error("Gagal memuat chat dari API:", chatError);
+        setChatList([]);
+      }
+
+    } catch (error: any) {
+      console.error("❌ Gagal memuat data:", error);
+      setErrorStatus(error?.response?.status || "ERROR");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKirimPesan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputPesan.trim()) return;
 
@@ -203,6 +209,7 @@ const handleKirimPesan = async (e: React.FormEvent) => {
       });
     }
   };
+
   // 🌟 PROSES UNGHAH PROGRESS LAPANGAN DENGAN VALIDASI SWEETALERT2
   const handleUploadProgress = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -237,8 +244,8 @@ const handleKirimPesan = async (e: React.FormEvent) => {
       
 
 
-    const resProgress = await getProgressImages(id);
-    setProgressImages(resProgress.data?.data || resProgress.data || []);
+      const resProgress = await getProgressImages(id);
+      setProgressImages(resProgress.data?.data || resProgress.data || []);
       // Otomatis muat ulang status terbaru dari server
       loadAllData();
     } catch (error) {
@@ -256,16 +263,16 @@ const handleKirimPesan = async (e: React.FormEvent) => {
   
 
   const statusColor = (status: string) => {
-  switch (status) {
-    case "pending": return "bg-yellow-100 text-yellow-700";
-    case "diperiksa": 
-    case "diverifikasi": return "bg-blue-100 text-blue-700"; // Tambahkan ini
-    case "tindak_lanjut": return "bg-orange-100 text-orange-700";
-    case "selesai": return "bg-green-100 text-green-700";
-    case "ditolak": return "bg-red-100 text-red-700";
-    default: return "bg-slate-100 text-slate-700";
-  }
-};
+    switch (status) {
+      case "pending": return "bg-yellow-100 text-yellow-700";
+      case "diperiksa": 
+      case "diverifikasi": return "bg-blue-100 text-blue-700";
+      case "tindak_lanjut": return "bg-orange-100 text-orange-700";
+      case "selesai": return "bg-green-100 text-green-700";
+      case "ditolak": return "bg-red-100 text-red-700";
+      default: return "bg-slate-100 text-slate-700";
+    }
+  };
 
   if (loading) {
     return (
@@ -281,6 +288,20 @@ const handleKirimPesan = async (e: React.FormEvent) => {
         <p className="font-bold text-lg text-neutral-800">Waduh, Data Aduan Tidak Ditemukan!</p>
         <p className="text-xs text-neutral-400">Kode Status: {errorStatus || "404"} • Cek otorisasi akun/middleware backend kamu.</p>
         <Link href="/dashboard" className="text-sm text-blue-600 hover:underline font-semibold">Kembali ke Dashboard</Link>
+      </div>
+    );
+  }
+
+  if (isSuperAdmin && laporan.visibility !== "public") {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen text-neutral-500 bg-neutral-50 space-y-4">
+        <p className="font-bold text-lg text-neutral-800">Akses Dibatasi</p>
+        <p className="text-xs text-neutral-400 max-w-sm text-center">
+          Sebagai Super Admin, Anda hanya dapat melihat laporan yang sudah berstatus publik.
+        </p>
+        <Link href="/dashboard/laporan" className="text-sm text-blue-600 hover:underline font-semibold">
+          Kembali ke Daftar Laporan
+        </Link>
       </div>
     );
   }
@@ -360,18 +381,24 @@ const handleKirimPesan = async (e: React.FormEvent) => {
                 <span>{laporan?.visibility === "public" ? "💬 Kolom Komentar Terbuka (Publik)" : "🔒 Obrolan Internal Petugas (Private)"}</span>
               </h3>
 
-              <form onSubmit={handleKirimPesan} className="flex gap-2">
-                <input
-                  type="text"
-                  value={inputPesan}
-                  onChange={(e) => setInputPesan(e.target.value)}
-                  placeholder={laporan?.visibility === "public" ? "Ketik komentar publik..." : "Tulis progres internal petugas..."}
-                  className="flex-1 bg-neutral-50 border border-neutral-200 text-sm rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all"
-                />
-                <button type="submit" className="bg-neutral-900 hover:bg-neutral-800 text-white p-3 rounded-xl transition-all shadow-sm shrink-0 active:scale-95">
-                  <Send size={16} />
-                </button>
-              </form>
+              {isSuperAdmin ? (
+                <div className="bg-neutral-50 border border-dashed border-neutral-200 rounded-xl px-4 py-3 text-xs text-neutral-400 text-center">
+                  👁️ Mode Super Admin — hanya bisa melihat, tidak bisa mengirim komentar.
+                </div>
+              ) : (
+                <form onSubmit={handleKirimPesan} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={inputPesan}
+                    onChange={(e) => setInputPesan(e.target.value)}
+                    placeholder={laporan?.visibility === "public" ? "Ketik komentar publik..." : "Tulis progres internal petugas..."}
+                    className="flex-1 bg-neutral-50 border border-neutral-200 text-sm rounded-xl px-4 py-3 text-neutral-800 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all"
+                  />
+                  <button type="submit" className="bg-neutral-900 hover:bg-neutral-800 text-white p-3 rounded-xl transition-all shadow-sm shrink-0 active:scale-95">
+                    <Send size={16} />
+                  </button>
+                </form>
+              )}
 
               <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                 {chatList.length === 0 ? (
@@ -426,43 +453,42 @@ const handleKirimPesan = async (e: React.FormEvent) => {
             </div>
 
             {/* 🌟 Hasil Perkembangan Lapangan (Hanya muncul jika status Tindak Lanjut atau Selesai) */}
-{/* 🌟 Hasil Perkembangan Lapangan (Hanya muncul jika status Tindak Lanjut atau Selesai) */}
-{["tindak_lanjut", "selesai"].includes(laporan?.status?.toLowerCase() || "") ? (
-  <div className="bg-white border border-neutral-200/60 rounded-2xl p-5 shadow-sm space-y-4">
-    <div className="flex justify-between items-center border-b pb-2">
-      <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
-        <CheckCircle size={14} className="text-emerald-500" />
-        <span>🛠️ Hasil Perkembangan Lapangan</span>
-      </h3>
-      {isAdmin && (
-        <label className="bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer shadow-sm transition-all flex items-center gap-1">
-          <ImageIcon size={12} />
-          <span>{uploadLoading ? "..." : "+ Foto"}</span>
-          <input type="file" accept="image/*" onChange={handleUploadProgress} disabled={uploadLoading} className="hidden" />
-        </label>
-      )}
-    </div>
+            {["tindak_lanjut", "selesai"].includes(laporan?.status?.toLowerCase() || "") ? (
+              <div className="bg-white border border-neutral-200/60 rounded-2xl p-5 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b pb-2">
+                  <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle size={14} className="text-emerald-500" />
+                    <span>🛠️ Hasil Perkembangan Lapangan</span>
+                  </h3>
+                  {isAdmin && !isSuperAdmin && (
+                    <label className="bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg cursor-pointer shadow-sm transition-all flex items-center gap-1">
+                      <ImageIcon size={12} />
+                      <span>{uploadLoading ? "..." : "+ Foto"}</span>
+                      <input type="file" accept="image/*" onChange={handleUploadProgress} disabled={uploadLoading} className="hidden" />
+                    </label>
+                  )}
+                </div>
 
-    {progressImages.length === 0 ? (
-      <p className="text-xs text-neutral-400 italic py-2">Belum ada bukti perkembangan lapangan.</p>
-    ) : (
-      <div className="grid grid-cols-1 gap-2.5">
-        {progressImages.map((img, index) => (
-          <div key={img.id || index} className="relative rounded-xl overflow-hidden border border-neutral-100 aspect-video bg-neutral-50">
-            <img src={img.image_url} alt="Progres Petugas" className="w-full h-full object-cover" />
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-) : (
-  /* Jika status belum masuk tindak lanjut, infokan ke admin saja. */
-  isAdmin && (
-    <div className="bg-yellow-50/50 border border-yellow-200/60 rounded-2xl p-4 text-xs text-yellow-700 shadow-sm leading-relaxed">
-      💡 <strong>Info Admin:</strong> Fitur unggah dokumentasi progress lapangan dikunci otomatis karena status aduan saat ini masih berupa <strong>{(laporan?.status || "").replace("_", " ")}</strong>. Silakan ubah status ke <em>Tindak Lanjut</em> terlebih dahulu untuk membuka akses.
-    </div>
-  )
-)}
+                {progressImages.length === 0 ? (
+                  <p className="text-xs text-neutral-400 italic py-2">Belum ada bukti perkembangan lapangan.</p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {progressImages.map((img, index) => (
+                      <div key={img.id || index} className="relative rounded-xl overflow-hidden border border-neutral-100 aspect-video bg-neutral-50">
+                        <img src={img.image_url} alt="Progres Petugas" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Jika status belum masuk tindak lanjut, infokan ke admin saja (bukan superadmin). */
+              isAdmin && !isSuperAdmin && (
+                <div className="bg-yellow-50/50 border border-yellow-200/60 rounded-2xl p-4 text-xs text-yellow-700 shadow-sm leading-relaxed">
+                  💡 <strong>Info Admin:</strong> Fitur unggah dokumentasi progress lapangan dikunci otomatis karena status aduan saat ini masih berupa <strong>{(laporan?.status || "").replace("_", " ")}</strong>. Silakan ubah status ke <em>Tindak Lanjut</em> terlebih dahulu untuk membuka akses.
+                </div>
+              )
+            )}
           </div>
 
         </div>

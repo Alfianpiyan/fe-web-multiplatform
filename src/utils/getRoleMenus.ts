@@ -64,16 +64,6 @@ export const menuByRole = {
       icon: FileText,
     },
     {
-      name: "Kelola Admin",
-      href: "/dashboard/admin",
-      icon: Users,
-    },
-    {
-      name: "Statistik",
-      href: "/dashboard/statistik",
-      icon: BarChart3,
-    },
-    {
       name: "Notifikasi",
       href: "/dashboard/notifikasi",
       icon: Bell,
